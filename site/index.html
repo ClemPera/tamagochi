@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A small friend</title>
+<link rel="stylesheet" href="./style.css">
+<style>
+  :root{
+    --bg-day-top:#fdf5e6;--bg-day-bottom:#e8efe3;
+    --bg-night-top:#141b2b;--bg-night-bottom:#0b101c;
+    --ink:#3b3630;--ink-soft:#6d6357;
+    --panel:rgba(255,255,255,.72);--panel-line:rgba(120,100,75,.18);
+    --accent:#e59a8b;--accent-deep:#c9765f;--radius:22px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{min-height:100vh;font-family:ui-rounded,"Segoe UI",Roboto,system-ui,-apple-system,sans-serif;color:var(--ink);background:linear-gradient(180deg,var(--bg-day-top),var(--bg-day-bottom));transition:background 2s ease,color 2s ease;-webkit-font-smoothing:antialiased}
+  body.night{color:#e7e1d6;background:linear-gradient(180deg,var(--bg-night-top),var(--bg-night-bottom));--panel:rgba(30,38,58,.72);--panel-line:rgba(200,210,235,.14);--ink-soft:#a9b0c4}
+  .wrap{max-width:860px;margin:0 auto;padding:20px 16px 48px}
+  h1,h2,h3{margin:0;font-weight:650;letter-spacing:.2px}
+  p{margin:0}
+  button{font:inherit;color:inherit;cursor:pointer}
+  [hidden]{display:none !important}
+  #onboarding{max-width:520px;margin:8vh auto 0;padding:0 20px;text-align:center}
+  #onboarding h1{font-size:1.7rem;line-height:1.25}
+  #onboarding .lede{margin-top:12px;color:var(--ink-soft);line-height:1.6}
+  .field{margin-top:26px;text-align:left}
+  .field label{display:block;font-size:.92rem;color:var(--ink-soft);margin-bottom:8px}
+  .field input{width:100%;padding:14px 16px;border-radius:14px;border:1px solid var(--panel-line);background:var(--panel);color:inherit;font:inherit;outline:none}
+  .field input:focus{border-color:var(--accent)}
+  .hold-wrap{position:relative;margin-top:26px}
+  #commit{position:relative;width:100%;padding:16px;border-radius:16px;border:none;background:var(--accent);color:#fff;font-weight:650;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+  #commit:disabled{opacity:.5;cursor:default}
+  #commitFill{position:absolute;inset:0;transform-origin:left center;transform:scaleX(0);background:rgba(255,255,255,.35);pointer-events:none}
+  #commit .label{position:relative;z-index:1}
+  #commitHint{margin-top:10px;font-size:.85rem;color:var(--ink-soft);min-height:1.3em}
+  #main .head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  #petTitle{font-size:1.35rem}
+  #stageLine{font-size:.9rem;color:var(--ink-soft)}
+  #statusLine,.status-line{margin-top:8px;font-size:1.02rem;color:var(--ink-soft);min-height:1.4em}
+  #stage,.stage{position:relative;width:100%;aspect-ratio:4/3;max-height:min(58vh,540px);margin-top:16px;border-radius:var(--radius);overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,.12));border:1px solid var(--panel-line);box-shadow:0 18px 40px -28px rgba(60,40,20,.6)}
+  body.night #stage{background:linear-gradient(180deg,rgba(70,90,140,.18),rgba(10,14,26,.4))}
+  #scene{position:absolute;inset:0;display:block;width:100%;height:100%}
+  #effects{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+  .spot{position:absolute;transform:translate(-50%,-50%);pointer-events:none;opacity:.9}
+  .spot-sun{width:74px;height:74px;border-radius:50%;background:radial-gradient(circle,rgba(255,214,120,.85),rgba(255,214,120,0) 70%)}
+  .spot-snack{width:44px;height:26px;border-radius:0 0 22px 22px;background:linear-gradient(180deg,#d8b07a,#b98a56);box-shadow:0 2px 0 rgba(0,0,0,.06)}
+  .spot-snack::after{content:"";position:absolute;left:50%;top:-8px;width:26px;height:14px;transform:translateX(-50%);border-radius:50%;background:#e8a24f}
+  .spot-nest{width:96px;height:44px;border-radius:50%;background:radial-gradient(ellipse at 50% 30%,#c6a878,#8f7548);opacity:.75}
+  body.night .spot-sun{opacity:.25}
+  .emote{position:absolute;transform:translate(-50%,-50%);font-size:22px;animation:floatUp 1.4s ease-out forwards;pointer-events:none}
+  @keyframes floatUp{0%{opacity:0;transform:translate(-50%,-40%) scale(.7)}20%{opacity:1}100%{opacity:0;transform:translate(-50%,-180%) scale(1.15)}}
+  #breathe{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:14px;background:rgba(20,25,40,.18);backdrop-filter:blur(2px)}
+  #breatheRing{width:120px;height:120px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:rgba(255,255,255,.12)}
+  #breatheText{color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.35);font-size:1rem}
+  #actions,.controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+  .act,.btn{flex:1 1 auto;min-width:96px;padding:13px 14px;border-radius:15px;border:1px solid var(--panel-line);background:var(--panel);color:inherit;font-weight:600;position:relative;overflow:hidden;touch-action:manipulation}
+  .act:hover,.btn:hover{transform:translateY(-1px)}
+  .act:disabled,.btn:disabled{opacity:.45;cursor:default;transform:none}
+  .act.holding,.btn.holding{background:var(--accent);color:#fff;border-color:transparent}
+  #btnSoothe,#btnTuck,#btnMedicine{touch-action:none}
+  .actFill{position:absolute;inset:0;transform-origin:left center;transform:scaleX(0);background:rgba(255,255,255,.3);pointer-events:none}
+  .actLabel{position:relative;z-index:1}
+  .act small,.btn small{display:block;font-weight:400;font-size:.72rem;opacity:.75;position:relative;z-index:1}
+  .card,.panel{margin-top:22px;padding:16px 18px;border-radius:var(--radius);background:var(--panel);border:1px solid var(--panel-line)}
+  .card h2{font-size:.82rem;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-soft)}
+  .card .empty{margin-top:8px;color:var(--ink-soft);font-size:.92rem;line-height:1.5}
+  #keepsakes,.shelf{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
+  .keepsake{display:flex;flex-direction:column;align-items:center;gap:4px;width:76px;text-align:center}
+  .keepsake .icon{font-size:26px;line-height:1}
+  .keepsake .kname{font-size:.7rem;color:var(--ink-soft)}
+  #diary,.diary{margin-top:12px;display:flex;flex-direction:column;gap:10px}
+  .diary-entry{font-size:.92rem;line-height:1.5;color:var(--ink-soft);padding-left:14px;border-left:2px solid var(--panel-line)}
+  #memorialList{margin:10px 0 0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:8px}
+  #memorialList li{padding:5px 12px;border-radius:999px;background:rgba(150,130,110,.14);font-size:.85rem;color:var(--ink-soft)}
+  details.card summary{cursor:pointer;font-size:.82rem;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-soft)}
+  #promiseWall{margin-top:18px;font-size:.92rem;color:var(--ink-soft);font-style:italic;text-align:center}
+  .note{margin-top:14px;padding:12px 16px;border-radius:16px;background:rgba(255,255,255,.65);border:1px solid var(--panel-line);display:flex;align-items:center;gap:12px;justify-content:space-between;font-size:.92rem;line-height:1.45}
+  body.night .note{background:rgba(40,50,72,.72)}
+  .note button{border:none;background:transparent;color:var(--accent-deep);font-weight:650;flex-shrink:0}
+  #healthNote{background:rgba(255,225,215,.8);border-color:rgba(200,120,100,.3)}
+  body.night #healthNote{background:rgba(90,50,50,.5)}
+  #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:rgba(40,35,30,.9);color:#fff;padding:10px 18px;border-radius:999px;font-size:.9rem;z-index:40;animation:toastIn .3s ease;max-width:90vw;text-align:center}
+  @keyframes toastIn{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+  #farewell{position:fixed;inset:0;z-index:50;display:grid;place-content:center;justify-items:center;text-align:center;background:linear-gradient(180deg,#0d1220,#05070d);color:#dfe3ee;padding:24px;transition:opacity 3s ease}
+  #farewell .fade{max-width:420px;opacity:.85;line-height:1.7}
+  #farewellMemorial h2{font-size:1.6rem;margin-bottom:14px}
+  #farewellMemorial p{color:#aeb6c9;line-height:1.7;max-width:420px}
+  #farewellRestart{margin-top:26px;padding:14px 30px;border-radius:999px;border:none;background:#8fa6d8;color:#0b101c;font-weight:700}
+  #bootNote{max-width:520px;margin:40px auto;padding:16px 18px;border-radius:16px;background:rgba(255,255,255,.8);border:1px solid var(--panel-line);color:#3b3630;font-size:.9rem;line-height:1.55}
+  @media (prefers-reduced-motion:reduce){.emote{animation-duration:.01ms}#farewell{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section id="onboarding" aria-labelledby="onboardTitle">
+    <h1 id="onboardTitle">Someone small is waiting.</h1>
+    <p class="lede">They are little, and new, and they will need you in small ways. Give them a name only the two of you will use, and one promise in your own words. Holding the button for three slow seconds is what makes it real.</p>
+    <form id="ritual" autocomplete="off" onsubmit="return false">
+      <div class="field">
+        <label for="petName">What will you call them?</label>
+        <input id="petName" name="petName" maxlength="24" placeholder="A name only the two of you will use" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="promise">One promise, in your own words</label>
+        <input id="promise" name="promise" maxlength="120" placeholder="I'll come back, even on the busy days." autocomplete="off">
+      </div>
+      <div class="hold-wrap">
+        <button id="commit" type="button" aria-describedby="commitHint" disabled>
+          <span id="commitFill"></span>
+          <span class="label">Press and hold to begin</span>
+        </button>
+        <p id="commitHint">Three slow seconds. Hold it the whole way.</p>
+      </div>
+    </form>
+  </section>
+
+  <main id="main" class="panel" hidden>
+    <div class="head">
+      <h1 id="petTitle">A small friend</h1>
+      <span id="stageLine"></span>
+    </div>
+    <p id="statusLine" class="status-line" aria-live="polite"></p>
+
+    <div id="stage" class="stage">
+      <div class="spot spot-sun" id="spotSun" aria-hidden="true"></div>
+      <div class="spot spot-snack" id="spotSnack" aria-hidden="true"></div>
+      <div class="spot spot-nest" id="spotNest" aria-hidden="true"></div>
+      <canvas id="scene" aria-label="A small creature moving around its home"></canvas>
+      <div id="effects" aria-hidden="true"></div>
+      <div id="breathe" hidden>
+        <div id="breatheRing"></div>
+        <p id="breatheText">breathe in…</p>
+      </div>
+    </div>
+
+    <div id="healthNote" class="note" hidden>
+      <span id="healthText">Your friend feels poorly. A little medicine may help, if you have a quiet moment.</span>
+    </div>
+
+    <div id="actions" class="controls">
+      <button class="btn act" id="btnFeed" data-care="feed"><span class="actLabel">Feed</span></button>
+      <button class="btn act" id="btnPlay" data-care="play"><span class="actLabel">Play</span></button>
+      <button class="btn act" id="btnPet" data-care="pet"><span class="actLabel">Pet</span></button>
+      <button class="btn act" id="btnSoothe" aria-describedby="sootheHint">
+        <span id="sootheFill" class="actFill"></span>
+        <span class="actLabel">Soothe</span><small id="sootheHint">hold to breathe together</small>
+      </button>
+      <button class="btn act" id="btnTuck"><span class="actLabel">Tuck in</span></button>
+      <button class="btn act" id="btnMedicine" hidden><span class="actLabel">Medicine</span></button>
+    </div>
+
+    <div id="returnNote" class="note" hidden>
+      <span id="returnText"></span>
+      <button id="returnDismiss" type="button">Good to be back</button>
+    </div>
+
+    <div id="breakNote" class="note" hidden>
+      <span>You have been together a little while. Your friend is glad you are here, and would wait happily while you stretch, drink some water, or say hello to someone you love.</span>
+      <button id="breakDismiss" type="button">I'll be back</button>
+    </div>
+
+    <section class="card panel" aria-labelledby="shelfTitle">
+      <h2 id="shelfTitle">Keepsakes</h2>
+      <p class="empty" id="shelfEmpty">Small things you do together will gather here.</p>
+      <div id="keepsakes" class="shelf"></div>
+    </section>
+
+    <section class="card panel" aria-labelledby="diaryTitle">
+      <h2 id="diaryTitle">Diary</h2>
+      <p class="empty" id="diaryEmpty">The days you share will be written here.</p>
+      <div id="diary" class="diary"></div>
+    </section>
+
+    <details class="card panel memorial" id="memorial">
+      <summary>Everyone who came before</summary>
+      <p class="empty" id="memorialEmpty">No one yet. May it stay that way a long while.</p>
+      <ul id="memorialList"></ul>
+    </details>
+
+    <p id="promiseWall"></p>
+  </main>
+
+  <div id="bootNote" hidden>
+    If nothing appeared above, your browser is likely blocking the page's little pieces because it was opened straight from disk. In this folder, run a one-line server such as <code>python3 -m http.server</code> and open the address it prints. Everything lives on your device.
+  </div>
+</div>
+
+<div id="farewell" hidden>
+  <div id="farewellFade" class="fade"><p id="farewellText"></p></div>
+  <div id="farewellMemorial" hidden>
+    <h2 id="memorialName">…</h2>
+    <p>Lived a small, loved life. Nothing you did wrong brought this — some lives are just short. Their name stays with you, and when you are ready, someone new is waiting. There is no hurry.</p>
+    <button id="farewellRestart" type="button">Welcome someone new</button>
+  </div>
+</div>
+
+<div id="toast" hidden role="status" aria-live="polite"></div>
+
+<script>
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      if (!window.__vfBooted) {
+        var n = document.getElementById('bootNote');
+        if (n) n.hidden = false;
+      }
+    }, 2500);
+  });
+</script>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

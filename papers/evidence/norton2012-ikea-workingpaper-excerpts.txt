@@ -1,0 +1,38 @@
+# Norton, Mochon & Ariely (2011) HBS Working Paper 11-091 — verification excerpts
+# Source: https://www.hbs.edu/ris/Publication%20Files/11-091.pdf (working-paper version of the 2012 JCP article)
+# Retrieved: 2026-10-03
+# Excerpts quoted for verification (fair use).
+
+--- builders vs non-builders WTP: $0.78 vs $0.48 -> +62.5% ---
+ompletely hedonic; see Dhar and
+Wertenbroch 2000).
+Results and Discussion
+As we expected, participants saw the IKEA boxes as more utilitarian than hedonic, rating
+them (M = 3.13, SD = 1.83) significantly lower than the midpoint of the scale, t(51) = 7.36, p <
+.001.
+We found that builders bid significantly more for their boxes (M = $0.78, SD = 0.63) than
+non-builders (M = $0.48, SD = 0.40), t(50) = 2.12, p < .05. Thus, while both groups were given
+
+IKEA Effect - 9 the chance to buy the same product, those who assembled their own box valued it more than
+those who were given the chance to buy an identical pre-assembled box. We ob
+
+--- liking ratings ---
+roups were given
+
+IKEA Effect - 9 the chance to buy the same product, those who assembled their own box valued it more than
+those who were given the chance to buy an identical pre-assembled box. We observed similar
+effects for subjective ratings of liking for the IKEA box, with builders reporting greater liking (M
+= 3.81, SD = 1.56) than non-builders (M = 2.50, SD = 1.03), t(50) = 3.58, p < .001.
+Experiment 1B: Magnitude
+Having demonstrated that the IKEA effect occurs even for mundane, utilitarian products,
+in Experiment 1B we switched to a new product category to begin to generalize our
+
+--- prospective aversion: 92% of N=51 prefer preassembled ---
+for marketers is more
+complicated. Indeed, when we asked students (N = 51) drawn from the same pool as used the
+studies above: “In general, what would you be willing to pay more for, products that you buy
+already assembled, or products that you buy with some assembly required,” a full 92% said they
+would pay more for preassembled products, χ2(1) = 36.26, p < .001. While our results suggest
+that consumers may pay a premium for “did it yourself” projects, they may still be unwilling to
+choose to engage prospectively in “do it yourself” projects.
+These results have implicatio

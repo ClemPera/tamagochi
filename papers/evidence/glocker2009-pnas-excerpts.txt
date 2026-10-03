@@ -1,0 +1,13 @@
+# Glocker et al. (2009) PNAS — verification excerpts
+# Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC2690007/
+# Retrieved: 2026-10-03
+# Excerpts quoted for verification (fair use).
+
+--- sample: 16 nulliparous women ---
+ach infant ( Fig. 1 ). We previously demonstrated in a sample of 122 undergraduate students that the high baby schema infants are perceived as cuter and elicit stronger motivation for caretaking than the unmanipulated and the low baby schema infants ( 10 ). In the present study, 16 nulliparous female participants viewed a pseudorandom sequence of these infant faces while we measured their brain activity with event-related blood oxygenation level-dependent (BOLD) fMRI at high field (3 Tesla). During the session, participants rated the pictures for cuteness (1 = “not very cute,” 2 = “cute,” 3 = “
+
+--- NAcc result ---
+bens (NAcc; 10, 12, –8; z threshold = 3.1, cluster probability P < 0.001). ( B ) The mean BOLD percent signal change from baseline in the right nucleus accumbens was greatest for high baby schema, followed by the unmanipulated and low baby schema infants (repeated-measures ANOVA F (2, 14) = 12.96, P < 0.001, Bonferroni corrected pair-wise comparisons ∗ P < 0.05 and ∗∗∗ P = 0.001). Error bars show SEM. To further probe our finding in the mesocorticolimbic system, we extracted the mean BOLD percent signal change from the activated cluster in the nucleus accumbens, which wa
+
+--- cuteness ratings result ---
+unmanipulated, and high (round face, high forehead, big eyes, small nose and mouth) baby schema faces. (Modified from ref. 10 , copyright Blackwell Verlag GmbH.) Results Repeated-measures ANOVA revealed a significant main effect of baby schema on participants' cuteness ratings (F (2, 14) = 60.00, P < 0.001). The high baby schema infants were rated as cuter than the unmanipulated and the low baby schema infants (Bonferroni corrected pair-wise comparisons: high vs. low P < 0.001, high vs. unmanipulated P < 0.001, unmanipulated vs. low P < 0.001), confirming the behavioral

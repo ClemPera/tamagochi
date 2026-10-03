@@ -1,0 +1,46 @@
+# Ratajska, Brown & Chabris (2020) PsyArXiv preprint — verification excerpts
+# Source: https://doi.org/10.31234/osf.io/2d9xj (preprint of the AJP 2020 article)
+# Retrieved: 2026-10-03
+# Excerpts quoted for verification (fair use).
+
+--- N=66, 32 videos of 13-23 s ---
+Heider and Simmel black-and-white video. We asked whether the original findings could be
+reproduced 75 years later by creating 32 new colored animated shape videos designed to depict
+various social plots and testing whether they can evoke similar spontaneous social attributions.
+Participants (N = 66) viewed our videos and were asked to write narratives which we coded for
+indicia of different types of social attributions. Consistent with Heider and Simmel, we found
+that participants spontaneously attributed social meaning to the videos. We observed that
+responses to our videos were also simila
+
+--- description of Heider & Simmel (1944) Exp I: all but one of 34 ---
+d simple geometric shapes (two triangles and one circle)
+moving around on a screen. The shapes were not explicitly defined as human figures, nor did
+they physically resemble humans in any way. Yet when college students viewed the animation
+and were asked to summarize the events, all but one of the 34 participants in the study
+(Experiment I) described the video in human-like terms. Many of the scenes were interpreted
+similarly by participants, suggesting that certain movements by the shapes in the video signaled
+social attribution in a predictable manner. In another condition of the study (Experiment
+
+--- reversed film: 42 of 44 ---
+es were interpreted
+similarly by participants, suggesting that certain movements by the shapes in the video signaled
+social attribution in a predictable manner. In another condition of the study (Experiment III),
+Heider and Simmel played the same animation in a reverse sequence. Again, nearly all
+participants (42 of 44) described the actions in the video in human-like terms. However, the
+
+ATTRIBUTING SOCIAL MEANING TO ANIMATED SHAPES
+
+5
+
+interpretations showed much more variation, likely because the reverse animation lacks definite
+organization and participants struggle
+
+--- 2.5-min original film ---
+ese new videos
+were designed to be generally suitable for a variety of social intelligence studies in a variety of
+research settings and participant populations.
+Eliciting Social Attributions using Animated Shapes: Heider And Simmel (1944)
+In their studies on social attribution, Heider and Simmel (1944) created a 2.5<H>-min
+long silent animation which included simple geometric shapes (two triangles and one circle)
+moving around on a screen. The shapes were not explicitly defined as human figures, nor did
+they physically resemble humans in any way. Yet when college students viewed the animati
