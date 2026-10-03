@@ -1,24 +1,28 @@
-/* CreatureView — a small virtual friend, drawn fresh every frame.
+/* CreatureView — v2 rebuild, vanilla, zero deps, no external assets.
  *
- * Design notes (from virtual_attachment.md 1-3):
- * - Animacy comes from motion timing, not art: squash + stretch along the
- *   travel axis, tilt into turns, hop anticipation.
- * - Goal legibility: the engine moves it; this view keeps the body axis
- *   aligned with travel so detours read as wants, not glitches.
- * - Baby schema as a slider: wide face, big glossy eyes, tiny nose + mouth.
- *   Supernormal exaggeration is welcome, so the eyes are oversized.
- *
- * Zero dependencies, no external assets, DPR-aware, cheap fills only
- * (no shadowBlur). Respects prefers-reduced-motion.
+ * Baby schema as a slider (Glocker): wide face, high forehead, supernormal
+ * large glossy eyes, tiny nose + mouth. No disease-coded features: sick is
+ * shiver + slow, never gasping; exhausted is droop, never collapse.
+ * Animacy from motion (Heider & Simmel): squash-stretch along velocity axis,
+ * tilt into turns, hop anticipation, goal-legible easing. Gaze loop: eyes
+ * track lookAt within ~1s, petting reads as gaze resting while slow.
+ * DPR-aware, cheap fills only (no shadowBlur), reduced-motion aware.
  */
 
 const MOODS = new Set([
-  'content', 'happy', 'hungry', 'sleepy', 'lonely', 'scared', 'sick', 'sleep', 'gone',
+  'content', 'happy', 'hungry', 'sleepy', 'lonely', 'scared',
+  'sick', 'sleep', 'gone', 'tender', 'unwell', 'critical',
 ]);
 const ACTS = new Set([
-  'idle', 'wander', 'seek', 'eat', 'play', 'sleep', 'soothe', 'greet', 'grieve',
+  'idle', 'wander', 'seek', 'eat', 'play', 'sleep',
+  'breathe', 'greet', 'grieve', 'shiver', 'excursion',
 ]);
-const HAPPY_ACTS = new Set(['play', 'soothe', 'greet']);
+// legacy v1 act names still accepted, mapped forward
+const ACT_ALIAS = { soothe: 'breathe', soothed: 'breathe', eating: 'eat', playing: 'play', petted: 'idle', sleeping: 'sleep', waking: 'greet' };
+const HAPPY_ACTS = new Set(['play', 'breathe', 'greet', 'excursion']);
+// Weak/tired/lonely faces must never be overridden into a happy smile:
+// petGlow and giggle peaks stay gated behind this set.
+const GLOW_BLOCK = new Set(['sick', 'unwell', 'critical', 'sleepy', 'exhausted', 'lonely', 'scared']);
 
 export class CreatureView {
   constructor(canvas) {
@@ -26,55 +30,112 @@ export class CreatureView {
     this.ctx = canvas.getContext('2d');
     this.mood = 'content';
     this.act = 'idle';
-    this.accent = 14; // warm terracotta hue
+    this.accent = 14;
 
     this.t = Math.random() * 10;
-    this.cx = 0; this.cy = 0; // smoothed render position (css px)
-    this.px = 0; this.py = 0; // previous target, for turn detection
+    this.cx = 0; this.cy = 0;
+    this.px = 0; this.py = 0;
     this.havePos = false;
     this.vx = 0; this.vy = 0;
     this.speed = 0;
     this.stretch = 0;
     this.tilt = 0;
-    this.crouch = 0; // hop anticipation, 0..1
+    this.crouch = 0;
     this.lastSpeed = 0;
     this.breath = 0;
-    this.gaze = null; // {x,y} css px relative to canvas
-    this.petGlow = 0; // recent petting warmth, 0..1
+    this.breathRate = 2.1;
+    this.gaze = null;
+    this._gazeAge = 0;
+    this.petGlow = 0;
     this.blinkIn = 2 + Math.random() * 2;
-    this.blink = 0; // seconds remaining of lid closure
+    this.blink = 0;
+    this._doubleBlink = false;
+    // wander charm: remembered cursor for occasional glances (uses existing lookAt data)
+    this._cursor = null;
+    this._cursorAt = -99;
+    this._glanceT = 0;
+    this._glanceIn = 3 + Math.random() * 3;
+    this._wasMoving = false;
+    // day habitat speckles, seeded per stage size
+    this._habitat = null;
     this.w = 0; this.h = 0; this.dpr = 1;
 
-    this.reduced = window.matchMedia &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // touch-zone reaction: { zone, t } seconds remaining
+    this.touch = null;
+    this.touchT = 0;
+    // one-shot hop for greet / eat / happy moments
+    this.hop = 0;
+    this.shiverPhase = Math.random() * 10;
+
+    this.reduced = false;
+    try {
+      this.reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+      if (window.matchMedia) {
+        const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const upd = (e) => { this.reduced = !!e.matches; };
+        if (mq.addEventListener) mq.addEventListener('change', upd);
+        else if (mq.addListener) mq.addListener(upd);
+      }
+    } catch { this.reduced = false; }
 
     this._resize();
     if (typeof ResizeObserver !== 'undefined') {
-      this._ro = new ResizeObserver(() => this._resize());
-      this._ro.observe(canvas);
+      try {
+        this._ro = new ResizeObserver(() => this._resize());
+        this._ro.observe(canvas);
+      } catch {}
     }
-    window.addEventListener('resize', () => this._resize());
+    try { window.addEventListener('resize', () => this._resize()); } catch {}
   }
 
-  setMood(m) {
-    if (MOODS.has(m)) this.mood = m;
-  }
-
+  setMood(m) { if (MOODS.has(m)) this.mood = m; }
   setAct(a) {
-    if (ACTS.has(a)) this.act = a;
+    if (ACT_ALIAS[a]) a = ACT_ALIAS[a];
+    if (ACTS.has(a)) {
+      if (a === 'greet' && this.act !== 'greet') this.hop = 1;
+      this.act = a;
+    }
   }
-
   setAccent(h) {
     h = Number(h);
     if (Number.isFinite(h)) this.accent = ((h % 360) + 360) % 360;
   }
 
-  // Gaze point in css px relative to the canvas (engine converts for us).
   lookAt(x, y) {
-    if (Number.isFinite(x) && Number.isFinite(y)) this.gaze = { x, y };
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    const W = this.w || 300, H = this.h || 225;
+    // accept normalized 0..1 or css px
+    if (Math.abs(x) <= 1.5 && Math.abs(y) <= 1.5 && W > 60) {
+      this.gaze = { x: x * W, y: y * H };
+    } else {
+      this.gaze = { x, y };
+    }
+    this._gazeAge = 0;
+    // remember cursor for occasional glances between pointer moves
+    try { this._cursor = { x: this.gaze.x, y: this.gaze.y }; this._cursorAt = this.t; } catch {}
   }
 
-  // pos {x,y}: css px relative to canvas, or 0..1 normalized. vel {x,y}: px/s.
+  // react('head'|'belly'|'back') — distinct touch reaction, returns a word.
+  react(zone) {
+    const calm = this.reduced ? 0.15 : 1;
+    if (zone === 'head') {
+      this.touch = 'head'; this.touchT = 1.1;
+      this.petGlow = 1; this.hop = Math.max(this.hop, 0.6 * calm);
+      return 'wiggle';
+    }
+    if (zone === 'belly') {
+      this.touch = 'belly'; this.touchT = 1.4;
+      this.petGlow = 0.9;
+      return 'giggle';
+    }
+    if (zone === 'back') {
+      this.touch = 'back'; this.touchT = 1.6;
+      this.petGlow = Math.max(this.petGlow, 0.6);
+      return 'cozy';
+    }
+    return 'hello';
+  }
+
   update(dt, pos, vel) {
     dt = Math.min(Math.max(dt || 0, 0), 0.05);
     this.t += dt;
@@ -86,11 +147,9 @@ export class CreatureView {
         tx = pos.x * W; ty = pos.y * H;
       } else { tx = pos.x; ty = pos.y; }
     }
-    if (!this.havePos) {
-      this.cx = tx; this.cy = ty; this.px = tx; this.py = ty;
-      this.havePos = true;
-    }
-    const k = 1 - Math.exp(-dt * 9);
+    if (!this.havePos) { this.cx = tx; this.cy = ty; this.px = tx; this.py = ty; this.havePos = true; }
+    const slow = this._slowFactor();
+    const k = 1 - Math.exp(-dt * (9 / slow));
     this.cx += (tx - this.cx) * k;
     this.cy += (ty - this.cy) * k;
 
@@ -108,160 +167,339 @@ export class CreatureView {
     this.vy += (vy - this.vy) * vk;
     this.speed = Math.hypot(this.vx, this.vy);
 
-    // Squash + stretch along travel, eased.
     const target = Math.min(this.speed / 620, 0.26);
     this.stretch += (target - this.stretch) * (1 - Math.exp(-dt * 8));
 
-    // Hop anticipation: sudden surge crouches first, then releases.
     const accel = (this.speed - this.lastSpeed) / Math.max(dt, 1e-3);
     this.lastSpeed = this.speed;
-    if (accel > 2600 && this.crouch <= 0.05) this.crouch = 1;
+    if (accel > 2600 && this.crouch <= 0.05 && !this.reduced) this.crouch = 1;
     this.crouch = Math.max(0, this.crouch - dt * 5.5);
+    this.hop = Math.max(0, this.hop - dt * 2.2);
+    // wander charm: hop on arrival — was gliding, now settled
+    const moving = this.speed > 140;
+    if (this._wasMoving && !moving && this.speed < 70 && !this.reduced) {
+      if (this.act !== 'sleep' && this.mood !== 'sleep') {
+        if (this.hop <= 0.05) this.hop = Math.max(this.hop, 0.45);
+        this.crouch = Math.max(this.crouch, 0.4);
+      }
+    }
+    this._wasMoving = moving;
 
-    // Tilt into turns from lateral velocity.
     const tiltTarget = Math.max(-0.3, Math.min(0.3, this.vx / 950));
     this.tilt += (tiltTarget - this.tilt) * (1 - Math.exp(-dt * 6));
 
-    this.breath += dt * (this.mood === 'sleep' || this.act === 'sleep' ? 1.1 : 2.1);
+    this.breathRate = (this.mood === 'sleep' || this.act === 'sleep') ? 1.1
+      : this.act === 'breathe' ? 0.9
+      : this._isWeak() ? 1.3 : 2.1;
+    this.breath += dt * this.breathRate;
+    this.shiverPhase += dt * (this._isShivery() ? 26 : 4);
 
-    // Blink every 2-5 s; sleepy moods blink slower and lazier.
+    if (this.touchT > 0) {
+      this.touchT -= dt;
+      if (this.touchT <= 0) { this.touch = null; this.touchT = 0; }
+    }
+
     this.blinkIn -= dt;
-    if (this.blink > 0) this.blink -= dt;
+    if (this.blink > 0) {
+      this.blink -= dt;
+      if (this.blink <= 0) {
+        // wander charm: occasional double-blink, like a sleepy second thought
+        if (this._doubleBlink) { this._doubleBlink = false; this.blinkIn = 0.24; }
+      }
+    }
     else if (this.blinkIn <= 0) {
       this.blink = 0.13;
-      this.blinkIn = 2 + Math.random() * 3;
-      if (this.mood === 'sleepy' || this.mood === 'sleep') this.blinkIn += 1.5;
+      // blink rhythm: 2-5s cadence, slower when drowsy or weak, quicker when playful
+      this.blinkIn = 2 + Math.random() * 3; // 2-5s cadence
+      if (this.mood === 'sleepy' || this.mood === 'sleep' || this._isWeak()) this.blinkIn += 1.5;
+      if (this.act === 'play' || this.act === 'greet') this.blinkIn = Math.max(1.4, this.blinkIn - 1);
+      this._doubleBlink = !this.reduced && Math.random() < 0.22;
     }
 
-    // Petting reads as gaze resting on the creature while it is slow.
     if (this.gaze) {
-      const d = Math.hypot(this.gaze.x - this.cx, this.gaze.y - this.cy);
-      const R = this.radius();
-      if (d < R * 1.4 && this.speed < 60) this.petGlow = Math.min(1, this.petGlow + dt * 3);
-      else this.petGlow = Math.max(0, this.petGlow - dt * 1.2);
+      this._gazeAge += dt;
+      if (this._gazeAge > 1) { this.gaze = null; this._gazeAge = 0; }
+      else {
+        const d = Math.hypot(this.gaze.x - this.cx, this.gaze.y - this.cy);
+        const R = this.radius();
+        if (d < R * 1.5 && this.speed < 70) this.petGlow = Math.min(1, this.petGlow + dt * 2.2);
+        else this.petGlow = Math.max(0, this.petGlow - dt * 1.1);
+      }
     } else {
-      this.petGlow = Math.max(0, this.petGlow - dt * 1.2);
+      this._gazeAge = 0;
+      this.petGlow = Math.max(0, this.petGlow - dt * 1.1);
+    }
+    // wander charm: occasional cursor glance using remembered lookAt data
+    this._glanceIn -= dt;
+    if (this._glanceT > 0) {
+      this._glanceT -= dt;
+      if (this._cursor && !this.gaze && !this.reduced) {
+        this.gaze = { x: this._cursor.x, y: this._cursor.y };
+        this._gazeAge = 0.2;
+      }
+      if (this._glanceT <= 0) this._glanceIn = 3.5 + Math.random() * 4;
+    } else if (!this.gaze && this._cursor && !this.reduced) {
+      const awake = this.act !== 'sleep' && this.mood !== 'sleep';
+      const idle = this.speed < 80 && awake;
+      const fresh = (this.t - this._cursorAt) < 14;
+      if (idle && fresh && this._glanceIn <= 0) this._glanceT = 0.7 + Math.random() * 0.4;
+      else if (this._glanceIn <= 0) this._glanceIn = 2;
     }
   }
 
-  radius() {
-    return Math.max(26, Math.min(this.w, this.h) * 0.17);
+  radius() { return Math.max(30, Math.min(this.w, this.h) * 0.205); }
+
+  _isShivery() {
+    return this.mood === 'sick' || this.mood === 'unwell' || this.mood === 'critical'
+      || this.mood === 'scared' || this.act === 'shiver';
   }
+  _isWeak() {
+    return this.mood === 'sick' || this.mood === 'unwell' || this.mood === 'critical';
+  }
+  _slowFactor() { return this._isWeak() ? 1.8 : 1; } // weak moves slower, never frozen
 
   _resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const rect = this.canvas.getBoundingClientRect();
-    const w = Math.max(1, Math.round(rect.width || this.canvas.clientWidth || 300));
-    const h = Math.max(1, Math.round(rect.height || this.canvas.clientHeight || 225));
+    let dpr = 1;
+    try { dpr = Math.min(window.devicePixelRatio || 1, 2); } catch {}
+    let w = 300, h = 225;
+    try {
+      const rect = this.canvas.getBoundingClientRect();
+      w = Math.max(1, Math.round(rect.width || this.canvas.clientWidth || 300));
+      h = Math.max(1, Math.round(rect.height || this.canvas.clientHeight || 225));
+    } catch { }
     if (w !== this.w || h !== this.h || dpr !== this.dpr) {
       this.w = w; this.h = h; this.dpr = dpr;
-      this.canvas.width = Math.round(w * dpr);
-      this.canvas.height = Math.round(h * dpr);
+      try {
+        this.canvas.width = Math.round(w * dpr);
+        this.canvas.height = Math.round(h * dpr);
+      } catch {}
     }
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    try { this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); } catch {}
   }
 
   draw() {
-    if (this.canvas.clientWidth && (this.canvas.clientWidth !== this.w)) this._resize();
+    try {
+      if (this.canvas.clientWidth && this.canvas.clientWidth !== this.w) this._resize();
+    } catch {}
     const { ctx, w: W, h: H } = this;
+    if (!ctx) return;
     ctx.clearRect(0, 0, W, H);
     if (W < 2 || H < 2) return;
-
     if (this.mood === 'gone') { this._drawAbsence(ctx, W, H); return; }
 
     const R = this.radius();
     const calm = this.reduced ? 0 : 1;
-    const bob = Math.sin(this.breath) * R * 0.028 * calm;
-    const cx = this.cx, cy = this.cy + bob;
+    const weak = this._isWeak();
 
-    this._drawShadow(ctx, W, H, cx, cy, R);
+    // breathing bob: slow + shallow when weak, deep + slow for breathe act
+    const bobAmp = this.act === 'breathe' ? 0.045 : weak ? 0.016 : 0.028;
+    const bob = Math.sin(this.breath) * R * bobAmp * (this.reduced ? 0.2 : 1);
 
-    // Build squash + stretch along the velocity axis.
+    // hop lift (greet / eat joy / head pat) with anticipation already in crouch
+    const hopLift = this.hop > 0 ? Math.sin(this.hop * Math.PI) * R * 0.35 * calm : 0;
+    // droop: exhausted demonstration — body sits lower, never collapses
+    const droopY = (this.mood === 'sleepy' || this.mood === 'sleep') ? R * 0.1
+      : weak ? R * 0.14 : 0;
+
+    let cx = this.cx, cy = this.cy + bob - hopLift + droopY;
+
+    // shiver: tiny fast x jitter, never gasp (mouth untouched), skipped in reduced motion
+    let shx = 0;
+    if (this._isShivery() && calm) {
+      const amp = this.mood === 'critical' ? 2.2 : this.mood === 'scared' ? 1.6 : 1.2;
+      shx = Math.sin(this.shiverPhase) * amp;
+      if (this.act === 'shiver') shx *= 1.4;
+    }
+
+    this._drawHabitat(ctx, W, H, R);
+    this._drawShadow(ctx, W, H, cx, cy, R, hopLift);
+
     const ang = this.speed > 24 ? Math.atan2(this.vy, this.vx) : 0;
     const along = this.speed > 24 ? this.stretch : this.stretch * 0.4;
     let sx = 1 + along, sy = 1 - along * 0.72;
-    if (this.crouch > 0) { // anticipation crouch
-      sx *= 1 + 0.18 * this.crouch;
-      sy *= 1 - 0.24 * this.crouch;
-    }
-    const br = 1 + Math.sin(this.breath) * 0.014 * calm;
-    sx *= br; sy *= br;
+    if (this.crouch > 0) { sx *= 1 + 0.18 * this.crouch; sy *= 1 - 0.24 * this.crouch; }
+    const brBase = this.act === 'breathe' ? 0.035 : 0.014;
+    const br = 1 + Math.sin(this.breath) * brBase * (this.reduced ? 0.3 : 1);
+    sx *= br; sy *= (2 - br) / 1 + (br - 1) * 0.4; // keep volume-ish, gentle
+    // weak droop: slightly wider + flatter, still upright
+    if (weak) { sx *= 1.04; sy *= 0.96; }
+    if (this.mood === 'sleep' || this.act === 'sleep') { sx *= 1.06; sy *= 0.93; }
 
     ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(this.tilt * 0.7);
-    if (this.mood === 'scared') ctx.translate((Math.random() - 0.5) * 1.6 * calm, 0);
+    ctx.translate(cx + shx, cy);
+
+    // touch-zone lean / wiggle
+    let extraTilt = this.tilt * 0.7;
+    if (this.touch === 'head' && this.touchT > 0 && calm) {
+      extraTilt += Math.sin(this.t * 22) * 0.12 * Math.min(1, this.touchT);
+      ctx.translate(Math.sin(this.t * 22) * 3 * Math.min(1, this.touchT), Math.sin(this.t * 30) * -1.5);
+    }
+    if (this.touch === 'belly' && this.touchT > 0 && calm) {
+      // grumpy-then-giggly: early shake, late bounce
+      if (this.touchT > 0.9) ctx.translate(Math.sin(this.t * 30) * 2.2, 0);
+      else ctx.translate(0, -Math.abs(Math.sin(this.t * 9)) * 5);
+    }
+    if (this.touch === 'back' && this.touchT > 0) {
+      extraTilt += 0.22 * Math.min(1, this.touchT); // sleepy lean
+    }
+    // grief: held still, slight lean down
+    if (this.act === 'grieve') extraTilt *= 0.3;
+    ctx.rotate(extraTilt);
+    if (this.mood === 'scared' && calm) ctx.translate((Math.random() - 0.5) * 1.6, 0);
     ctx.rotate(ang);
     ctx.scale(sx, sy);
     ctx.rotate(-ang);
+
     this._drawBody(ctx, R);
     this._drawFace(ctx, R);
     ctx.restore();
 
-    if ((this.mood === 'sleep' || this.act === 'sleep') && calm) this._drawZzz(ctx, cx, cy, R);
+    // tender glow ring
+    if ((this.mood === 'tender' || this.petGlow > 0.55) && calm) {
+      ctx.strokeStyle = `hsla(${this.accent},80%,72%,${0.25 + this.petGlow * 0.3})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(cx + shx, cy, R * 1.22, R * 1.12, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    if ((this.mood === 'sleep' || this.act === 'sleep') && calm) this._drawZzz(ctx, cx + shx, cy, R);
+    if (this.act === 'excursion' && calm) this._drawMotionPuffs(ctx, cx + shx, cy, R);
   }
 
   _bodyColor() {
-    if (this.mood === 'sick') return '#e9e6d2'; // pale, washed-out tint
+    if (this.mood === 'critical') return '#e7e1cf';
+    if (this.mood === 'unwell' || this.mood === 'sick') return '#e9e6d2';
+    if (this.mood === 'tender') return '#fff0df';
     if (this.mood === 'sleep' || this.mood === 'sleepy') return '#f7ecd9';
     if (this.mood === 'scared') return '#fdf3e3';
-    return '#fff5e2'; // warm cream
+    if (this.mood === 'lonely') return '#f9ecdf';
+    return '#fff5e2';
   }
 
-  _drawShadow(ctx, W, H, cx, cy, R) {
+  _drawShadow(ctx, W, H, cx, cy, R, hopLift) {
+    // ground shadow follows the creature; softens + shrinks as it hops
     const gy = Math.min(H - R * 0.42, cy + R * 1.18);
-    const hop = Math.max(0, Math.min(1, (gy - cy) / (R * 1.6)));
-    const sw = R * (1.02 - hop * 0.25);
-    ctx.fillStyle = 'rgba(74,52,32,0.16)';
+    const hop = Math.max(0, Math.min(1, ((gy - cy) / (R * 1.6)) + (hopLift / (R * 2))));
+    const sw = R * (1.04 - hop * 0.28);
+    const alpha = 0.19 - hop * 0.07;
+    ctx.fillStyle = 'rgba(96,66,38,' + Math.max(0.06, alpha).toFixed(3) + ')';
     ctx.beginPath();
     ctx.ellipse(cx, gy, sw, R * 0.17, 0, 0, Math.PI * 2);
     ctx.fill();
+    // whisper of a second soft edge, no shadowBlur
+    ctx.fillStyle = 'rgba(96,66,38,0.07)';
+    ctx.beginPath();
+    ctx.ellipse(cx, gy, sw * 1.28, R * 0.22, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  _isNight() {
+    try {
+      return document.body.getAttribute('data-phase') === 'night'
+        || document.body.classList.contains('night');
+    } catch { return false; }
+  }
+
+  _drawHabitat(ctx, W, H, R) {
+    // day-only whisper of home: warm ground wash, faint speckles, tiny tufts
+    if (this._isNight()) return;
+    if (W < 40 || H < 40) return;
+    // warm ground wash along the bottom third
+    ctx.fillStyle = 'rgba(255,214,150,0.14)';
+    ctx.beginPath();
+    ctx.ellipse(W * 0.5, H * 0.94, W * 0.46, H * 0.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // seed speckles per stage size so they sit still
+    const key = Math.round(W) + 'x' + Math.round(H);
+    if (!this._habitat || this._habitat.key !== key) {
+      const dots = [];
+      let seed = (Math.round(W) * 13 + Math.round(H) * 7) % 1000;
+      const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed % 1000) / 1000; };
+      for (let i = 0; i < 16; i++) {
+        dots.push({ x: 0.06 + rnd() * 0.88, y: 0.52 + rnd() * 0.4, r: 1 + rnd() * 2.2, a: 0.06 + rnd() * 0.08 });
+      }
+      const tufts = [];
+      for (let i = 0; i < 4; i++) {
+        tufts.push({ x: 0.1 + rnd() * 0.8, y: 0.62 + rnd() * 0.26, s: 0.7 + rnd() * 0.6 });
+      }
+      this._habitat = { key, dots, tufts };
+    }
+    for (const d of this._habitat.dots) {
+      ctx.fillStyle = 'rgba(120,98,66,' + d.a.toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.ellipse(d.x * W, d.y * H, d.r, d.r * 0.7, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(130,138,88,0.28)';
+    ctx.lineWidth = 1.4;
+    ctx.lineCap = 'round';
+    for (const tf of this._habitat.tufts) {
+      const bx = tf.x * W, by = tf.y * H, s = tf.s * Math.max(4, R * 0.09);
+      ctx.beginPath();
+      ctx.moveTo(bx - s, by);
+      ctx.quadraticCurveTo(bx - s * 0.7, by - s * 1.4, bx - s * 0.4, by - s * 1.7);
+      ctx.moveTo(bx, by);
+      ctx.quadraticCurveTo(bx, by - s * 1.5, bx + s * 0.1, by - s * 1.9);
+      ctx.moveTo(bx + s, by);
+      ctx.quadraticCurveTo(bx + s * 0.8, by - s * 1.3, bx + s * 0.9, by - s * 1.6);
+      ctx.stroke();
+    }
   }
 
   _drawBody(ctx, R) {
-    // Wide round body (baby-schema: broad face, high forehead).
     ctx.fillStyle = this._bodyColor();
     ctx.beginPath();
     ctx.ellipse(0, 0, R * 1.1, R * 1.0, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Soft belly patch, slightly lighter.
     ctx.fillStyle = 'rgba(255,255,255,0.55)';
     ctx.beginPath();
     ctx.ellipse(0, R * 0.42, R * 0.62, R * 0.4, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Little feet nubs.
     ctx.fillStyle = this._bodyColor();
     ctx.beginPath();
     ctx.ellipse(-R * 0.52, R * 0.88, R * 0.3, R * 0.2, -0.25, 0, Math.PI * 2);
     ctx.ellipse(R * 0.52, R * 0.88, R * 0.3, R * 0.2, 0.25, 0, Math.PI * 2);
     ctx.fill();
 
-    // Blush in the accent hue.
-    const ac = `hsla(${this.accent},72%,68%,0.55)`;
-    ctx.fillStyle = ac;
+    // blush in accent hue, softer when weak
+    const alpha = this._isWeak() ? 0.32 : 0.55;
+    ctx.fillStyle = `hsla(${this.accent},72%,68%,${alpha})`;
     ctx.beginPath();
     ctx.ellipse(-R * 0.66, R * 0.18, R * 0.2, R * 0.13, -0.2, 0, Math.PI * 2);
     ctx.ellipse(R * 0.66, R * 0.18, R * 0.2, R * 0.13, 0.2, 0, Math.PI * 2);
     ctx.fill();
+
+    // excursion dust is drawn outside; keep body clean
   }
 
   _eyeOpenness() {
     if (this.blink > 0) return 0;
+    if (this.touch === 'back') return 0.45; // sleepy lean
     switch (this.mood) {
       case 'sleep': return 0.05;
       case 'sleepy': return 0.38;
+      case 'exhausted': return 0.42;
       case 'sick': return 0.5;
-      case 'lonely': return 0.72; // sad droop
-      case 'scared': return 1.12; // wide
+      case 'unwell': return 0.45;
+      case 'critical': return 0.34; // droop, never shut fully while awake
+      case 'tender': return 0.85; // soft, warm
+      case 'lonely': return 0.72;
+      case 'scared': return 1.12;
+      case 'hungry': return 0.95;
       default: return 1;
     }
   }
 
   _happyClosed() {
+    if (GLOW_BLOCK.has(this.mood)) return false;
     if (this.petGlow > 0.45) return true;
-    if ((this.mood === 'happy' || this.mood === 'content') && HAPPY_ACTS.has(this.act)) return true;
+    if ((this.mood === 'happy' || this.mood === 'content' || this.mood === 'tender') && HAPPY_ACTS.has(this.act)) return true;
+    // belly giggle peak: eyes squeezed happy
+    if (this.touch === 'belly' && this.touchT < 0.9 && this.touchT > 0) return true;
+    if (this.act === 'eat') return false; // eating watches the snack
     return false;
   }
 
@@ -270,7 +508,6 @@ export class CreatureView {
     const open = this._eyeOpenness();
 
     if (this._happyClosed()) {
-      // Joyful closed eyes: two upward curves.
       ctx.strokeStyle = '#40362e';
       ctx.lineWidth = Math.max(2, R * 0.045);
       ctx.lineCap = 'round';
@@ -283,7 +520,6 @@ export class CreatureView {
       return;
     }
 
-    // Gaze offset toward the look point, clamped small.
     let gx = 0, gy = 0;
     const gp = this.gaze || { x: this.cx, y: this.cy - R };
     const dx = gp.x - this.cx, dy = gp.y - this.cy;
@@ -291,16 +527,17 @@ export class CreatureView {
     const maxOff = er * 0.34;
     gx = (dx / dl) * Math.min(maxOff, dl * 0.03 + maxOff * 0.4);
     gy = (dy / dl) * Math.min(maxOff, dl * 0.03 + maxOff * 0.4);
+    // grief looks down, sleep looks nowhere
+    if (this.act === 'grieve') { gx *= 0.3; gy = Math.abs(gy) * 0.6 + er * 0.1; }
+    if (this.mood === 'sleep') { gx = 0; gy = 0; }
 
     const wide = this.mood === 'scared' ? 1.14 : 1;
     for (const s of [-1, 1]) {
       const px = s * ex + gx, py = ey + gy;
-      // Eye ball, supernormal large and glossy.
       ctx.fillStyle = '#3d342e';
       ctx.beginPath();
       ctx.arc(px, py, er * wide, 0, Math.PI * 2);
       ctx.fill();
-      // Gloss: one bright dot + one tiny sparkle.
       ctx.fillStyle = 'rgba(255,255,255,0.95)';
       ctx.beginPath();
       ctx.arc(px - er * 0.32, py - er * 0.34, er * 0.28, 0, Math.PI * 2);
@@ -310,21 +547,19 @@ export class CreatureView {
       ctx.arc(px + er * 0.3, py + er * 0.28, er * 0.12, 0, Math.PI * 2);
       ctx.fill();
 
-      // Lid: cream shutter from the top. Lonely gets an extra droop tilt.
       const lid = Math.max(0, Math.min(1, 1 - open));
       if (lid > 0.02) {
         ctx.fillStyle = this._bodyColor();
-        const droop = this.mood === 'lonely' && s < 0 ? er * 0.12 : 0;
-        const droopR = this.mood === 'lonely' && s > 0 ? er * 0.12 : 0;
+        const droopL = (this.mood === 'lonely' || this._isWeak()) && s < 0 ? er * 0.14 : 0;
+        const droopR = (this.mood === 'lonely' || this._isWeak()) && s > 0 ? er * 0.14 : 0;
         ctx.beginPath();
-        ctx.ellipse(px, py - er - droop + lid * er * 1.15, er * 1.06, er * (0.55 + lid * 0.75), 0, 0, Math.PI * 2);
-        if (droopR) { ctx.ellipse(px, py - er - droopR + lid * er * 1.15, er * 1.06, er * (0.55 + lid * 0.75), 0, 0, Math.PI * 2); }
+        ctx.ellipse(px, py - er - droopL + lid * er * 1.15, er * 1.06, er * (0.55 + lid * 0.75), 0, 0, Math.PI * 2);
+        if (droopR) ctx.ellipse(px, py - er - droopR + lid * er * 1.15, er * 1.06, er * (0.55 + lid * 0.75), 0, 0, Math.PI * 2);
         ctx.fill();
       }
     }
 
-    // Worried brows for scared / lonely.
-    if (this.mood === 'scared' || this.mood === 'lonely' || this.mood === 'sick') {
+    if (this.mood === 'scared' || this.mood === 'lonely' || this._isWeak()) {
       ctx.strokeStyle = 'rgba(64,54,46,0.8)';
       ctx.lineWidth = Math.max(1.5, R * 0.03);
       ctx.lineCap = 'round';
@@ -342,26 +577,30 @@ export class CreatureView {
 
   _drawMouth(ctx, R, happy) {
     const my = R * 0.36;
-    ctx.strokeStyle = '#4a3f36';
-    ctx.fillStyle = '#4a3f36';
     ctx.lineWidth = Math.max(1.5, R * 0.032);
     ctx.lineCap = 'round';
     const mw = R * 0.17;
 
     const mouthFor = () => {
-      if (happy || this.mood === 'happy' || this.mood === 'content') return 'smile';
+      if (this.touch === 'belly' && this.touchT > 0.9) return 'grumpy'; // grumpy first…
+      if (happy || this.mood === 'happy' || this.mood === 'content' || this.mood === 'tender') return 'smile';
       switch (this.mood) {
         case 'hungry': return 'open';
         case 'sleep':
         case 'sleepy': return 'soft';
         case 'lonely': return 'wobble';
         case 'scared': return 'o';
-        case 'sick': return 'flat';
+        case 'sick':
+        case 'unwell':
+        case 'critical':
+        case 'exhausted': return 'flat'; // tired line, never gasp
         default: return 'smile';
       }
     };
-    const kind = this.act === 'eat' ? 'open' : mouthFor();
-    // Tiny nose dot above the mouth (small nose per baby schema).
+    let kind = this.act === 'eat' ? 'open' : mouthFor();
+    if (this.touch === 'belly' && this.touchT <= 0.9 && this.touchT > 0) kind = 'smile'; // …then giggly
+    if (this.act === 'grieve') kind = 'soft';
+
     ctx.fillStyle = 'rgba(120,90,80,0.55)';
     ctx.beginPath();
     ctx.arc(0, my - R * 0.14, R * 0.028, 0, Math.PI * 2);
@@ -382,16 +621,21 @@ export class CreatureView {
       ctx.beginPath();
       ctx.ellipse(0, my, mw * 0.42, mw * 0.55, 0, 0, Math.PI * 2);
       ctx.fill();
-    } else if (kind === 'flat') {
+    } else if (kind === 'flat' || kind === 'grumpy') {
       ctx.beginPath();
-      ctx.moveTo(-mw * 0.7, my);
-      ctx.lineTo(mw * 0.7, my);
+      if (kind === 'grumpy') {
+        ctx.moveTo(-mw * 0.7, my + R * 0.03);
+        ctx.lineTo(mw * 0.7, my - R * 0.02);
+      } else {
+        ctx.moveTo(-mw * 0.7, my);
+        ctx.lineTo(mw * 0.7, my);
+      }
       ctx.stroke();
     } else if (kind === 'wobble') {
       ctx.beginPath();
       ctx.arc(0, my + R * 0.14, mw * 0.9, Math.PI * 1.2, Math.PI * 1.8);
       ctx.stroke();
-    } else { // soft: tiny resting line
+    } else {
       ctx.beginPath();
       ctx.moveTo(-mw * 0.45, my);
       ctx.quadraticCurveTo(0, my + R * 0.03, mw * 0.45, my);
@@ -409,17 +653,25 @@ export class CreatureView {
     ctx.fillText('z', cx + R * 1.3, cy - R * 1.05 - a * R * 0.35);
   }
 
+  _drawMotionPuffs(ctx, cx, cy, R) {
+    // excursion trot puffs: two cheap fading dots behind
+    const p = (Math.sin(this.t * 8) + 1) / 2;
+    ctx.fillStyle = 'rgba(140,120,100,0.25)';
+    ctx.beginPath();
+    ctx.arc(cx - R * 0.9 - p * R * 0.3, cy + R * 0.7, R * (0.1 + p * 0.06), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   _drawAbsence(ctx, W, H) {
-    // Gone: no creature, just a faint remembered ring where it used to be.
     const R = this.radius();
     const cx = this.havePos ? this.cx : W / 2;
     const cy = this.havePos ? this.cy : H * 0.56;
     ctx.strokeStyle = 'rgba(120,105,90,0.28)';
     ctx.lineWidth = 2;
-    ctx.setLineDash([6, 8]);
+    try { ctx.setLineDash([6, 8]); } catch {}
     ctx.beginPath();
     ctx.ellipse(cx, cy, R * 0.9, R * 0.8, 0, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.setLineDash([]);
+    try { ctx.setLineDash([]); } catch {}
   }
 }

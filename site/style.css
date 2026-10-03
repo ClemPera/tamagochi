@@ -1,5 +1,7 @@
-/* Soft cozy theme. Words, not numbers: #statusLine is a sentence, never a meter.
-   Mobile-first, big touch targets, dim night theme, reduced-motion support. */
+/* Cozy v2 theme — mobile-first, words not numbers, day + night.
+   Keeps every v1 hook working: .wrap .panel #stage #scene .controls .btn
+   .status-line .shelf .diary .memorial #onboarding #farewell .note .spot #breathe
+   Adds: ritual bar, drag-snack, touch hint, toggles, coach marks, shiver/slow. */
 
 :root {
   --paper-top: #fdf5e6;
@@ -11,10 +13,11 @@
   --accent: #e59a8b;
   --accent-deep: #c9765f;
   --accent-ink: #fffdf9;
+  --nest: #c6a878;
   --radius: 22px;
   --shadow-soft: 0 18px 40px -28px rgba(60, 40, 20, 0.55);
   --font-round: "Avenir Rounded", "Hiragino Maru Gothic ProN", ui-rounded,
-    "SF Pro Rounded", "Segoe UI", system-ui, sans-serif;
+    "SF Pro Rounded", "Nunito", "Segoe UI", system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -29,7 +32,7 @@ body {
   transition: background 2s ease, color 2s ease;
 }
 
-/* Dim night theme (supports both the data-phase hook and .night fallback). */
+/* Day/night — support BOTH hooks the app lane may use */
 body[data-phase="night"],
 body.night {
   --paper-top: #141b2b;
@@ -41,6 +44,7 @@ body.night {
   color: var(--ink);
   background: linear-gradient(180deg, var(--paper-top), var(--paper-bottom));
 }
+body[data-phase="day"] { color-scheme: light; }
 
 .wrap {
   max-width: 860px;
@@ -51,7 +55,8 @@ body.night {
 h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: 0.2px; }
 p { margin: 0; line-height: 1.6; }
 button { font: inherit; color: inherit; cursor: pointer; }
-button:focus-visible, input:focus-visible, summary:focus-visible {
+button:focus-visible, input:focus-visible, summary:focus-visible,
+[role="button"][tabindex]:focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
@@ -70,7 +75,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible {
 .field label { display: block; font-size: 0.92rem; color: var(--ink-soft); margin-bottom: 8px; }
 .field input {
   width: 100%;
-  min-height: 52px;
+  min-height: 56px;
   padding: 14px 16px;
   border-radius: 14px;
   border: 1px solid var(--panel-line);
@@ -98,8 +103,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible {
 }
 #commit:disabled { opacity: 0.5; cursor: default; }
 #commitFill {
-  position: absolute;
-  inset: 0;
+  position: absolute; inset: 0;
   transform-origin: left center;
   transform: scaleX(0);
   background: rgba(255, 255, 255, 0.35);
@@ -108,7 +112,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible {
 #commit .label { position: relative; z-index: 1; }
 #commitHint { margin-top: 10px; font-size: 0.85rem; color: var(--ink-soft); min-height: 1.3em; }
 
-/* ---------- main ---------- */
+/* ---------- main head ---------- */
 #main .head {
   display: flex;
   align-items: baseline;
@@ -119,8 +123,18 @@ button:focus-visible, input:focus-visible, summary:focus-visible {
 #petTitle { font-size: 1.35rem; }
 #stageLine { font-size: 0.9rem; color: var(--ink-soft); }
 
-/* Status is a plain sentence — deliberately no bars, meters, or percents. */
-#statusLine {
+/* top utility row: night + mute toggles live here when the app renders them */
+.top-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+/* status is one sentence — never bars or meters */
+#statusLine, .status-line {
   margin-top: 8px;
   font-size: 1.05rem;
   font-style: italic;
@@ -128,7 +142,8 @@ button:focus-visible, input:focus-visible, summary:focus-visible {
   min-height: 1.5em;
 }
 
-#stage {
+/* ---------- stage ---------- */
+#stage, .stage {
   position: relative;
   width: 100%;
   aspect-ratio: 4 / 3;
@@ -136,49 +151,170 @@ button:focus-visible, input:focus-visible, summary:focus-visible {
   margin-top: 16px;
   border-radius: var(--radius);
   overflow: hidden;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.12));
+  background:
+    radial-gradient(ellipse 90% 34% at 50% 92%, rgba(255, 214, 150, 0.22), rgba(255, 214, 150, 0) 70%),
+    linear-gradient(180deg, rgba(255, 246, 224, 0.7), rgba(255, 250, 236, 0.35) 55%, rgba(233, 220, 188, 0.4));
   border: 1px solid var(--panel-line);
   box-shadow: var(--shadow-soft);
 }
-body[data-phase="night"] #stage,
-body.night #stage {
+body[data-phase="night"] #stage, body.night #stage,
+body[data-phase="night"] .stage, body.night .stage {
   background: linear-gradient(180deg, rgba(70, 90, 140, 0.18), rgba(10, 14, 26, 0.4));
 }
-#canvas {
-  position: absolute;
-  inset: 0;
+#scene, #canvas {
+  position: absolute; inset: 0;
   display: block;
-  width: 100%;
-  height: 100%;
+  width: 100%; height: 100%;
   touch-action: manipulation;
 }
 #effects { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .spot { position: absolute; transform: translate(-50%, -50%); pointer-events: none; opacity: 0.9; }
 .spot-sun {
-  width: 74px; height: 74px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 214, 120, 0.85), rgba(255, 214, 120, 0) 70%);
+  width: 88px; height: 88px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 212, 110, 0.95) 0%, rgba(255, 190, 90, 0.55) 38%, rgba(255, 190, 90, 0) 70%);
 }
 .spot-snack {
-  width: 44px; height: 26px; border-radius: 0 0 22px 22px;
-  background: linear-gradient(180deg, #d8b07a, #b98a56);
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.06);
+  width: 66px; height: 30px; border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 55%, rgba(232, 162, 79, 0.4), rgba(232, 162, 79, 0) 70%);
+  box-shadow: none;
+  opacity: 0.9;
 }
 .spot-snack::after {
   content: "";
-  position: absolute;
-  left: 50%; top: -8px;
-  width: 26px; height: 14px;
-  transform: translateX(-50%);
+  position: absolute; left: 50%; top: 50%;
+  width: 40px; height: 18px;
+  transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: #e8a24f;
+  background: radial-gradient(ellipse at 50% 40%, rgba(255, 236, 200, 0.5), rgba(216, 176, 122, 0.25));
 }
 .spot-nest {
-  width: 96px; height: 44px; border-radius: 50%;
-  background: radial-gradient(ellipse at 50% 30%, #c6a878, #8f7548);
-  opacity: 0.75;
+  width: 128px; height: 58px; border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0) 44%, rgba(198, 168, 120, 0.95) 45% 58%, rgba(143, 117, 72, 0.95) 59% 68%, rgba(198, 168, 120, 0) 69%);
+  border: none;
+  opacity: 0.95;
 }
-body[data-phase="night"] .spot-sun,
-body.night .spot-sun { opacity: 0.25; }
+.spot-nest::before {
+  content: "";
+  position: absolute; inset: 8px 14px;
+  border-radius: 50%;
+  border: 2px dashed rgba(120, 90, 50, 0.45);
+  pointer-events: none;
+}
+.spot-nest::after {
+  content: "";
+  position: absolute; inset: 14px 26px;
+  border-radius: 50%;
+  border: 1px solid rgba(120, 90, 50, 0.22);
+  pointer-events: none;
+}
+body[data-phase="night"] .spot-sun, body.night .spot-sun { opacity: 0.25; }
+body[data-phase="night"] .spot-nest, body.night .spot-nest {
+  box-shadow: 0 0 24px 4px rgba(255, 214, 130, 0.35);
+}
+
+/* painted snack: biscuit in-world, round radial glow (never a pink square) */
+#snackDrag {
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  font-size: 0 !important;
+  line-height: 0;
+  color: transparent;
+  text-indent: -9999px;
+  overflow: visible;
+  background:
+    radial-gradient(circle at 34% 32%, rgba(255, 244, 214, 0.9) 0 5px, rgba(255, 244, 214, 0) 6px),
+    radial-gradient(circle at 60% 30%, #7c4f2c 0 3px, rgba(124, 79, 44, 0) 4px),
+    radial-gradient(circle at 42% 58%, #7c4f2c 0 3.4px, rgba(124, 79, 44, 0) 4.4px),
+    radial-gradient(circle at 68% 62%, #7c4f2c 0 2.6px, rgba(124, 79, 44, 0) 3.6px),
+    radial-gradient(circle at 52% 40%, #f0d49c 0%, #d8a86a 58%, #b9834e 100%);
+  border: 2px solid rgba(140, 95, 50, 0.4);
+  box-shadow:
+    0 0 0 6px rgba(255, 222, 152, 0.35),
+    0 0 22px 8px rgba(232, 162, 79, 0.4),
+    0 4px 10px rgba(60, 40, 20, 0.25);
+  transition: left 0.38s ease, top 0.38s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+#snackDrag.dragging {
+  transition: none;
+  transform: translate(-50%, -50%) scale(1.12);
+  box-shadow:
+    0 0 0 8px rgba(255, 222, 152, 0.45),
+    0 0 28px 12px rgba(232, 162, 79, 0.5),
+    0 6px 14px rgba(60, 40, 20, 0.3);
+  cursor: grabbing;
+}
+#snackDrag.returning {
+  transition: left 0.45s ease, top 0.45s ease, transform 0.45s ease;
+  transform: translate(-50%, -50%) scale(0.92);
+}
+/* crumb-puff particles spawned on snap-back */
+#effects .crumb, .crumb {
+  position: absolute;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #f0d49c, #c69a62);
+  border: 1px solid rgba(140, 95, 50, 0.4);
+  pointer-events: none;
+  animation: crumbPuff 0.6s ease-out forwards;
+}
+@keyframes crumbPuff {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to { opacity: 0; transform: translate(var(--dx, 10px), var(--dy, -16px)) scale(0.35); }
+}
+/* round glow override — beats the bridge .spot-glow square for snack/nest */
+#stage .spot-snack.spot-glow, .stage .spot-snack.spot-glow {
+  box-shadow: 0 0 0 5px rgba(255, 222, 152, 0.5), 0 0 24px 10px rgba(232, 162, 79, 0.45) !important;
+  border-radius: 50% !important;
+  opacity: 1 !important;
+}
+#stage .spot-nest.spot-glow, .stage .spot-nest.spot-glow {
+  box-shadow: 0 0 22px 6px rgba(255, 214, 130, 0.45) !important;
+  opacity: 1 !important;
+}
+
+/* drag-snack affordance: the snack glows + nudges when a meal ritual is ready */
+.spot-snack.ready, .drag-snack.ready {
+  animation: snackGlow 1.6s ease-in-out infinite;
+  pointer-events: auto;
+  cursor: grab;
+}
+.drag-snack {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px dashed var(--panel-line);
+  background: var(--panel);
+  font-weight: 600;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.drag-snack .crumb { font-size: 1.3rem; }
+@keyframes snackGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 162, 79, 0.55); transform: translate(-50%, -50%) scale(1); }
+  50% { box-shadow: 0 0 0 10px rgba(232, 162, 79, 0); transform: translate(-50%, -58%) scale(1.08); }
+}
+
+/* touch-zone hint: small floating label over the creature */
+.touch-hint {
+  position: absolute;
+  left: 50%; bottom: 10px;
+  transform: translateX(-50%);
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 999px;
+  padding: 8px 14px;
+  pointer-events: none;
+  white-space: nowrap;
+  opacity: 0.95;
+}
+.touch-hint b { font-weight: 700; }
+
 .emote {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -191,28 +327,57 @@ body.night .spot-sun { opacity: 0.25; }
   20% { opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -180%) scale(1.15); }
 }
+
+/* creature-driven states mirrored as stage classes by the app lane */
+#stage.is-shivery .spot, .stage.is-shivery .spot { animation: shiver 0.35s linear infinite; }
+#stage.is-slow, .stage.is-slow { filter: saturate(0.85); }
+@keyframes shiver {
+  0%, 100% { margin-left: 0; }
+  25% { margin-left: -1.5px; }
+  75% { margin-left: 1.5px; }
+}
+@keyframes slowBob {
+  0%, 100% { transform: translate(-50%, -50%); }
+  50% { transform: translate(-50%, -56%); }
+}
+
 #breathe {
   position: absolute; inset: 0;
   display: grid; place-content: center; justify-items: center; gap: 14px;
-  background: rgba(20, 25, 40, 0.18);
+  background: radial-gradient(ellipse at 50% 45%, rgba(255, 220, 196, 0.66), rgba(229, 154, 139, 0.44) 55%, rgba(150, 80, 70, 0.34));
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 #breatheRing {
   width: 120px; height: 120px; border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.12);
+  border: 2px solid rgba(255, 250, 245, 0.9);
+  background: rgba(255, 235, 220, 0.2);
+  box-shadow: 0 0 32px 8px rgba(255, 200, 170, 0.35), inset 0 0 24px rgba(255, 220, 200, 0.28);
   transition: transform 0.08s linear;
 }
-#breatheText { color: #fff; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35); font-size: 1rem; }
+#breatheText { color: #5a3a32; text-shadow: 0 1px 8px rgba(255, 255, 255, 0.65); font-size: 1rem; }
 
-/* ---------- actions: big, thumb-friendly ---------- */
-#actions {
+/* ---------- ritual action bar ---------- */
+#actions, .controls, .ritual-bar {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
   margin-top: 16px;
 }
-.act {
+.ritual-bar {
+  position: sticky;
+  bottom: 10px;
+  z-index: 5;
+  padding: 10px;
+  border-radius: 20px;
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(6px);
+}
+.act, .btn {
   min-height: 56px;
+  min-width: 56px;
   padding: 13px 14px;
   border-radius: 15px;
   border: 1px solid var(--panel-line);
@@ -224,20 +389,21 @@ body.night .spot-sun { opacity: 0.25; }
   touch-action: manipulation;
   transition: transform 0.15s ease, background 0.2s ease;
 }
-.act:hover { transform: translateY(-1px); }
-.act:active { transform: translateY(1px) scale(0.99); }
-.act:disabled { opacity: 0.45; cursor: default; transform: none; }
-.act.holding { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.act:hover, .btn:hover { transform: translateY(-1px); }
+.act:active, .btn:active { transform: translateY(1px) scale(0.99); }
+.act:disabled, .btn:disabled { opacity: 0.45; cursor: default; transform: none; }
+.act.holding, .btn.holding { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.act.primary, .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 #btnSoothe, #btnTuck, #btnMedicine { touch-action: none; }
-.act .actFill {
+.act .actFill, .btn .actFill, .actFill {
   position: absolute; inset: 0;
   transform-origin: left center;
   transform: scaleX(0);
   background: rgba(255, 255, 255, 0.3);
   pointer-events: none;
 }
-.act .actLabel { position: relative; z-index: 1; }
-.act small {
+.act .actLabel, .btn .actLabel, .actLabel { position: relative; z-index: 1; }
+.act small, .btn small {
   display: block;
   font-weight: 400;
   font-size: 0.72rem;
@@ -246,8 +412,79 @@ body.night .spot-sun { opacity: 0.25; }
   z-index: 1;
 }
 
-/* ---------- cards ---------- */
-.card {
+/* ---------- toggle switch (night + mute) ---------- */
+.switch, .toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 8px 6px;
+  border: none;
+  background: transparent;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.switch .track, .toggle .track {
+  position: relative;
+  width: 52px; height: 30px;
+  border-radius: 999px;
+  background: rgba(120, 100, 75, 0.3);
+  border: 1px solid var(--panel-line);
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+.switch .thumb, .toggle .thumb {
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease;
+}
+.switch[aria-checked="true"] .track, .toggle[aria-checked="true"] .track,
+.switch.on .track, .toggle.on .track { background: var(--accent); }
+.switch[aria-checked="true"] .thumb, .toggle[aria-checked="true"] .thumb,
+.switch.on .thumb, .toggle.on .thumb { transform: translateX(22px); }
+.switch .glyph, .toggle .glyph { font-size: 1.1rem; }
+
+/* ---------- guided-prompt coach marks ---------- */
+.coach, .coach-mark, [data-coach] {
+  position: relative;
+}
+.coach-bubble {
+  margin-top: 14px;
+  padding: 14px 18px;
+  border-radius: 18px;
+  background: var(--panel);
+  border: 1.5px solid var(--accent);
+  box-shadow: var(--shadow-soft);
+  font-size: 0.95rem;
+  animation: coachIn 0.35s ease;
+}
+.coach-bubble::before {
+  content: "✦ ";
+  color: var(--accent-deep);
+}
+body[data-phase="night"] .coach-bubble::before,
+body.night .coach-bubble::before { color: var(--accent); }
+.coach-pulse {
+  box-shadow: 0 0 0 0 rgba(229, 154, 139, 0.6);
+  animation: coachPulse 1.8s ease-out infinite;
+  border-color: var(--accent) !important;
+}
+@keyframes coachIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes coachPulse {
+  0% { box-shadow: 0 0 0 0 rgba(229, 154, 139, 0.55); }
+  70% { box-shadow: 0 0 0 12px rgba(229, 154, 139, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(229, 154, 139, 0); }
+}
+
+/* ---------- cards / shelves ---------- */
+.card, .panel {
   margin-top: 22px;
   padding: 16px 18px;
   border-radius: var(--radius);
@@ -255,35 +492,37 @@ body.night .spot-sun { opacity: 0.25; }
   border: 1px solid var(--panel-line);
   box-shadow: var(--shadow-soft);
 }
-.card h2 {
+.card h2, .panel h2 {
   font-size: 0.82rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--ink-soft);
 }
-.card .empty { margin-top: 8px; color: var(--ink-soft); font-size: 0.92rem; }
-#keepsakes { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+.card .empty, .panel .empty { margin-top: 8px; color: var(--ink-soft); font-size: 0.92rem; }
+#keepsakes, .shelf { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
 .keepsake {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
   width: 76px; text-align: center;
+  min-height: 56px;
 }
 .keepsake .icon { font-size: 26px; line-height: 1; }
 .keepsake .kname { font-size: 0.7rem; color: var(--ink-soft); }
-#diary { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+#diary, .diary { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
 .diary-entry {
   font-size: 0.92rem; color: var(--ink-soft);
   padding-left: 14px;
   border-left: 2px solid var(--panel-line);
 }
-#memorialList { margin: 10px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px; }
-#memorialList li {
+.memorial, #memorial { list-style: none; }
+#memorialList, .memorial-list { margin: 10px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px; }
+#memorialList li, .memorial-list li {
   padding: 5px 12px;
   border-radius: 999px;
   background: rgba(150, 130, 110, 0.14);
   font-size: 0.85rem;
   color: var(--ink-soft);
 }
-details.card summary {
+details.card summary, details.panel summary {
   cursor: pointer;
   font-size: 0.82rem;
   text-transform: uppercase;
@@ -311,27 +550,26 @@ details.card summary {
   justify-content: space-between;
   font-size: 0.92rem;
 }
-body[data-phase="night"] .note,
-body.night .note { background: rgba(40, 50, 72, 0.72); }
+body[data-phase="night"] .note, body.night .note { background: rgba(40, 50, 72, 0.72); }
 .note button {
   border: none;
   background: transparent;
   color: var(--accent-deep);
   font-weight: 650;
   min-height: 44px;
+  min-width: 44px;
   padding: 8px 4px;
   flex-shrink: 0;
 }
-body[data-phase="night"] .note button,
-body.night .note button { color: var(--accent); }
+body[data-phase="night"] .note button, body.night .note button { color: var(--accent); }
 #healthNote { background: rgba(255, 225, 215, 0.8); border-color: rgba(200, 120, 100, 0.3); }
-body[data-phase="night"] #healthNote,
-body.night #healthNote { background: rgba(90, 50, 50, 0.5); }
+body[data-phase="night"] #healthNote, body.night #healthNote { background: rgba(90, 50, 50, 0.5); }
 
 #toast {
   position: fixed;
   left: 50%;
-  bottom: 22px;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  bottom: auto;
   transform: translateX(-50%);
   max-width: min(92vw, 420px);
   text-align: center;
@@ -341,10 +579,15 @@ body.night #healthNote { background: rgba(90, 50, 50, 0.5); }
   border-radius: 999px;
   font-size: 0.9rem;
   z-index: 40;
+  pointer-events: none;
   animation: toastIn 0.3s ease;
 }
+#toast .toast-friend, .toast-friend {
+  margin-right: 8px;
+  font-size: 1.05em;
+}
 @keyframes toastIn {
-  from { opacity: 0; transform: translate(-50%, 10px); }
+  from { opacity: 0; transform: translate(-50%, -8px); }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
@@ -362,7 +605,7 @@ body.night #healthNote { background: rgba(90, 50, 50, 0.5); }
 #farewellMemorial p { color: #aeb6c9; max-width: 420px; }
 #farewellRestart {
   margin-top: 26px;
-  min-height: 52px;
+  min-height: 56px;
   padding: 14px 30px;
   border-radius: 999px;
   border: none;
@@ -381,11 +624,149 @@ body.night #healthNote { background: rgba(90, 50, 50, 0.5); }
   font-size: 0.9rem;
 }
 
-/* ---------- larger screens: actions breathe into three columns ---------- */
+/* ---------- round 2 app-lane hooks (added markup, styled here) ---------- */
+/* growth season pill: warm + small (pairs with #stageLine) */
+#stageLine, .stage-pill {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: rgba(229, 154, 139, 0.16);
+  border: 1px solid rgba(201, 118, 95, 0.32);
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+/* ambience line: smaller + letterspaced (pairs with #rhythmLine) */
+#rhythmLine, .rhythm-line {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  opacity: 0.88;
+  font-style: italic;
+}
+/* one-line stage overlay guide: above canvas, never pushes layout */
+.guide-overlay {
+  position: absolute;
+  left: 50%; top: 10px;
+  transform: translateX(-50%);
+  z-index: 6;
+  max-width: 92%;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 253, 249, 0.94);
+  border: 1px solid var(--panel-line);
+  box-shadow: 0 6px 18px -10px rgba(60, 40, 20, 0.5);
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+body[data-phase="night"] .guide-overlay, body.night .guide-overlay {
+  background: rgba(30, 38, 58, 0.92);
+}
+/* onboarding nest + egg that cracks with hold progress */
+.egg-hold {
+  position: relative;
+  width: 128px; height: 96px;
+  margin: 20px auto 0;
+  pointer-events: none;
+}
+.egg-hold::before {
+  content: "";
+  position: absolute; left: 50%; bottom: 0;
+  width: 122px; height: 52px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0) 44%, rgba(198, 168, 120, 0.95) 45% 58%, rgba(143, 117, 72, 0.95) 59% 68%, rgba(198, 168, 120, 0) 69%);
+}
+.egg-hold::after {
+  content: "";
+  position: absolute; left: 50%; bottom: 22px;
+  width: 56px; height: 68px;
+  transform: translateX(-50%);
+  border-radius: 50% 50% 48% 48% / 58% 58% 42% 42%;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 40%),
+    radial-gradient(ellipse at 50% 38%, #fffdf6, #f3e4c8 70%, #e2cba0);
+  border: 1px solid rgba(150, 120, 80, 0.35);
+  box-shadow: 0 6px 14px -8px rgba(60, 40, 20, 0.5);
+}
+.egg-hold.egg-1::after { filter: none; }
+.egg-hold.egg-2::after, .egg-hold:has(.egg-2)::after {
+  background:
+    linear-gradient(115deg, transparent 46%, rgba(90, 60, 40, 0.55) 47% 49%, transparent 50%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 40%),
+    radial-gradient(ellipse at 50% 38%, #fffdf6, #f3e4c8 70%, #e2cba0);
+}
+.egg-hold.egg-3::after, .egg-hold:has(.egg-3)::after {
+  background:
+    linear-gradient(115deg, transparent 42%, rgba(90, 60, 40, 0.6) 43% 45%, transparent 46%),
+    linear-gradient(65deg, transparent 52%, rgba(90, 60, 40, 0.5) 53% 55%, transparent 56%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0) 40%),
+    radial-gradient(ellipse at 50% 38%, #fffdf6, #f6e8cc 55%, #e8d2a8 75%, #d9bd8d);
+  transform: translateX(-50%) rotate(-3deg) scale(1.03);
+}
+/* quiet ghost row for Night / Quiet (pairs with #nightRow) */
+#nightRow, .settings-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.settings-row .btn, .settings-row .act,
+#nightRow .btn, #nightRow .act {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--ink-soft);
+  font-weight: 500;
+  font-size: 0.86rem;
+  min-height: 44px;
+  opacity: 0.85;
+}
+.settings-row .btn:hover, #nightRow .btn:hover { background: var(--panel); opacity: 1; }
+/* full-width tuck */
+.span-all { grid-column: 1 / -1; }
+/* suggested next ritual: warm accent fill */
+.act.suggested, .btn.suggested, .suggested {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+  box-shadow: 0 6px 18px -8px rgba(201, 118, 95, 0.7);
+  animation: suggestedNudge 2.6s ease-in-out infinite;
+}
+@keyframes suggestedNudge {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+/* softened sleeping panel — Wake stays prominent */
+.panel-quiet {
+  filter: saturate(0.92);
+}
+.panel-quiet #actions .btn, .panel-quiet.controls .btn {
+  opacity: 0.55;
+}
+.panel-quiet #btnTuck {
+  opacity: 1;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+  box-shadow: 0 6px 18px -8px rgba(201, 118, 95, 0.7);
+}
+
+/* ---------- larger screens ---------- */
 @media (min-width: 640px) {
   .wrap { padding: 28px 24px 64px; }
-  #actions { grid-template-columns: repeat(3, 1fr); }
+  #actions, .controls, .ritual-bar { grid-template-columns: repeat(3, 1fr); }
   #petTitle { font-size: 1.6rem; }
+  .ritual-bar { position: static; }
+  #toast { top: 16px; bottom: auto; }
 }
 
 /* ---------- reduced motion: stillness is also cozy ---------- */
@@ -398,6 +779,11 @@ body.night #healthNote { background: rgba(90, 50, 50, 0.5); }
   body { transition: none; }
   .emote { animation-duration: 0.01ms; }
   #farewell { transition: none; }
-  .act:hover, .act:active { transform: none; }
+  .act:hover, .act:active, .btn:hover, .btn:active { transform: none; }
+  .spot-snack.ready, .drag-snack.ready, .coach-pulse,
+  #stage.is-shivery .spot, .stage.is-shivery .spot,
+  .suggested, #snackDrag.returning, .crumb,
+  .guide-overlay, .egg-hold.egg-3::after { animation: none; }
+  #snackDrag, #snackDrag.returning { transition: none; }
   html { scroll-behavior: auto; }
 }
