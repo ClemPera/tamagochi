@@ -34,6 +34,7 @@ const favLink = $('#fav');
 const actionsEl = $('#actions');
 const playGuide = $('#playGuide'), playGuideText = $('#playGuideText'), playGiveUp = $('#playGiveUp');
 const eggHold = $('#eggHold');
+const sunFleckBtn = $('#sunFleckBtn'), sunGiftBtn = $('#sunGiftBtn');
 
 /* ---------- quiet helpers: never throw, never log ---------- */
 function swallow(fn, fb) { try { const v = fn(); return v === undefined ? fb : v; } catch { return fb; } }
@@ -158,6 +159,126 @@ function diaryPush(line) {
   } catch {}
   return false;
 }
+function keepsakePush(name, story) {
+  try {
+    const st = ES();
+    if (Array.isArray(st.keepsakes)) {
+      st.keepsakes.push({ name: String(name || 'small keepsake').slice(0, 48), story: String(story || '') });
+      while (st.keepsakes.length > 48) st.keepsakes.shift();
+      return true;
+    }
+  } catch {}
+  return false;
+}
+function keepsakeHasFrag(frag) {
+  try {
+    const ks = ES().keepsakes || [];
+    const f = String(frag || '').toLowerCase();
+    if (!f) return false;
+    return ks.some((k) => keepsakeName(k).toLowerCase().includes(f));
+  } catch { return false; }
+}
+
+/* ---------- v3: spark words (bright/soft/sleepy/spent), defensive ---------- */
+function sparkWord() {
+  const s = swallow(() => eng('getSparkWord'), null);
+  if (typeof s === 'string' && /bright|soft|sleepy|spent/i.test(s)) return s.toLowerCase();
+  const gs = statusOf();
+  if (gs && typeof gs.spark === 'string' && /bright|soft|sleepy|spent/i.test(gs.spark)) return String(gs.spark).toLowerCase();
+  const st = ES();
+  if (typeof st.spark === 'string' && /bright|soft|sleepy|spent/i.test(st.spark)) return String(st.spark).toLowerCase();
+  return 'bright';
+}
+function sparkSuffix(n) {
+  const w = sparkWord();
+  if (w === 'soft') return ' ' + n + ' is glowing a touch softer now.';
+  if (w === 'sleepy') return ' ' + n + ' feels sleepy and curls a little smaller.';
+  if (w === 'spent') return ' ' + n + ' feels spent and wants only nearness.';
+  return '';
+}
+function hungryNow() {
+  try { return /hungry|starving|peckish/i.test(needWords().belly || ''); } catch { return false; }
+}
+function sparkSpent() { const w = sparkWord(); return w === 'spent' || w === 'sleepy'; }
+function sparkSpentOnly() { return sparkWord() === 'spent'; }
+
+/* ---------- v3: trajectory echo (slipping/recovering) ---------- */
+function trajSuffix() {
+  try {
+    const gs = statusOf();
+    const t = gs && gs.trajectory;
+    if (typeof t !== 'string') return '';
+    if (/slip/i.test(t)) return ' and a little weaker than yesterday';
+    if (/recov/i.test(t)) return ' and mending softly';
+    return '';
+  } catch { return ''; }
+}
+function withTraj(line) {
+  try {
+    const s = trajSuffix();
+    if (!s || !line) return line;
+    if (String(line).includes('weaker than yesterday') || String(line).includes('mending softly')) return line;
+    return String(line).replace(/[.\s]+$/, '') + ', ' + s.replace(/^and /, '') + '.';
+  } catch { return line; }
+}
+
+/* ---------- v3: what-if-I-leave copy ---------- */
+const TUCK_LINES = [
+  'Curled up small. Short whiles only soften — the little home keeps warm.',
+  'Tucked warm. The little home keeps warm while you are away.',
+  'Curled up small and cozy. Rest keeps softly, till you are back.',
+];
+function nextTuckLine() {
+  try {
+    const i = Number(ui.tuckLineIdx) || 0;
+    const line = TUCK_LINES[i % TUCK_LINES.length];
+    ui.tuckLineIdx = (i + 1) % TUCK_LINES.length;
+    storeUi();
+    return line;
+  } catch { return TUCK_LINES[0]; }
+}
+const ASK_COPY = 'Away a while? One missed day only pauses the story — no scolding, nothing spoiled. You would see quieter, then shivery, then very weak first, each with time to mend together.';
+const LONG_PAUSE_LINE = 'Even long whiles pause before any goodbye.';
+function weekKey(d) {
+  try {
+    const t = d instanceof Date ? d : new Date();
+    const onejan = new Date(t.getFullYear(), 0, 1);
+    const wk = Math.ceil((((t - onejan) / 86400000) + onejan.getDay() + 1) / 7);
+    return t.getFullYear() + '-w' + wk;
+  } catch { return 'week'; }
+}
+
+/* ---------- v3: sun-fleck status wrappers ---------- */
+function sunFleckStatus() {
+  const r = swallow(() => eng('canSunFleck', Date.now()), null);
+  if (r && typeof r === 'object' && typeof r.ok === 'boolean') return r;
+  try {
+    if (!aliveNow() || sleepNow() || sickNow() || stageNow() === 'egg') return { ok: false, reason: 'rest' };
+    const h = new Date().getHours();
+    if (h < 10 || h >= 17) return { ok: false, reason: 'rest' };
+    const w = needWords();
+    if (/starving/i.test(w.belly || '') || /exhausted/i.test(w.sleep || '')) return { ok: false, reason: 'rest' };
+    const st = ES();
+    const last = st.lastSunFleckDay || ui.lastSunFleckDay || '';
+    if (last === todayStr()) return { ok: false, reason: 'done' };
+    if (sparkSpentOnly()) return { ok: false, reason: 'spent' };
+    return { ok: true };
+  } catch { return { ok: false, reason: 'rest' }; }
+}
+function doSunFleck() { return eng('playSunFleck'); }
+function doInitiative(openMin, lastRitualMin) {
+  const r = swallow(() => eng('checkInitiative', openMin, lastRitualMin), null);
+  return r && typeof r === 'object' ? r : null;
+}
+function doGrantGift() {
+  const r = swallow(() => eng('grantGift'), null);
+  return r && typeof r === 'object' ? r : null;
+}
+function doAnniversary() {
+  const s = swallow(() => eng('anniversaryLine', todayStr()), null);
+  if (typeof s === 'string' && s.trim()) return s.trim();
+  return null;
+}
 
 /* ---------- tiny ui store ---------- */
 const UI_KEY = 'v2-ui-v1';
@@ -181,6 +302,7 @@ function ritualEcho() {
     if (Date.now() - lastRitualAt > 10 * 60 * 1000) return '';
     if (lastRitualKind === 'snack') return 'Still glowing from that snack.';
     if (lastRitualKind === 'play') return 'Still humming from that game.';
+    if (lastRitualKind === 'sun') return 'Still humming from the sun-flecks.';
     if (lastRitualKind === 'sit') return 'Still warm from sitting close.';
     if (lastRitualKind === 'breathe') return 'Still steady from breathing together.';
     if (lastRitualKind === 'tuck') return 'Still cozy from being tucked in.';
@@ -504,22 +626,22 @@ function renderStatus() {
   }
   const ws = warnStage();
   if (ws === 'critical') {
-    try { statusLine.textContent = n + ' is very weak and staying near the nest. Staying close, with food and rest, matters most now.'; } catch {}
+    try { statusLine.textContent = withEcho(withTraj(n + ' is very weak and staying near the nest. Staying close, with food and rest, matters most now.') + sparkSuffix(n)); } catch {}
     safeMood('sick');
     return;
   }
   if (ws === 'unwell') {
-    try { statusLine.textContent = n + ' has a little chill and wants nearness. Warmth and patience will see it through.'; } catch {}
+    try { statusLine.textContent = withEcho(withTraj(n + ' has a little chill and wants nearness. Warmth and patience will see it through.') + sparkSuffix(n)); } catch {}
     safeMood('sick');
     return;
   }
   if (ws === 'tender') {
-    try { statusLine.textContent = withEcho(n + ' is a little quieter today. Small meals and naps help most.'); } catch {}
+    try { statusLine.textContent = withEcho(withTraj(n + ' is a little quieter today. Small meals and naps help most.') + sparkSuffix(n)); } catch {}
     safeMood('lonely');
     return;
   }
   if (scaredNow()) {
-    try { statusLine.textContent = withEcho(n + ' feels a little trembly and wants you near.'); } catch {}
+    try { statusLine.textContent = withEcho(withTraj(n + ' feels a little trembly and wants you near.') + sparkSuffix(n)); } catch {}
     safeMood('scared');
     return;
   }
@@ -529,6 +651,7 @@ function renderStatus() {
   const lowIs = (word, list) => list.some((s) => word.toLowerCase().includes(s));
   let line = n + ' is here, glad to see you.';
   let mood = 'content';
+  let isTop = false;
   const bellyLow = lowIs(w.belly, ['hungry', 'starving', 'peckish']);
   const heartLow = lowIs(w.heart, ['lonely', 'blue']);
   const sleepLow = lowIs(w.sleep, ['tired', 'exhausted', 'drowsy']);
@@ -538,15 +661,15 @@ function renderStatus() {
   else if (bellyLow) { line = n + ' feels ' + w.belly + ' and keeps glancing at the snack corner.'; mood = 'hungry'; }
   else if (heartLow || sleepLow) { line = n + ' is doing all right, and gladder with you near.'; mood = heartLow ? 'lonely' : 'sleepy'; }
   else {
-    const gs = statusOf();
-    const traj = gs && gs.trajectory;
     line = n + ' is doing all right, and gladder with you near.';
-    if (typeof traj === 'string' && traj) line = n + ' is doing all right — ' + traj + '.';
-    else if (nightNow() && !sleepNow()) line = n + ' is getting drowsy as night settles in.';
+    if (nightNow() && !sleepNow()) line = n + ' is getting drowsy as night settles in.';
+    else isTop = true;
     mood = /glad|cheer|joy/i.test(w.heart) ? 'happy' : 'content';
   }
   const tw = swallow(() => trustWord(), '');
   if (/close|devoted/i.test(tw || '')) line = line.replace(/\.$/, '') + ', and very fond of you.';
+  if (!isTop) line = withTraj(line);
+  line = line + sparkSuffix(n);
   try { statusLine.textContent = withEcho(line); } catch {}
   safeMood(mood);
 }
@@ -609,6 +732,31 @@ function renderShelves() {
   try { promiseWall.textContent = ui.promise ? '“' + ui.promise + '”' : ''; } catch {}
 }
 let busy = false;
+function updateSunFleckAffordance() {
+  try {
+    if (!sunFleckBtn) return;
+    if (sunFleckRunning) { sunFleckBtn.hidden = true; return; }
+    if (main.hidden || !aliveNow() || sleepNow() || sickNow() || stageNow() === 'egg') { sunFleckBtn.hidden = true; return; }
+    const s = sunFleckStatus();
+    sunFleckBtn.hidden = !s.ok;
+    if (s.ok) {
+      try {
+        const p = spotXY('sun');
+        sunFleckBtn.style.position = 'absolute';
+        sunFleckBtn.style.left = (p.x * 100) + '%';
+        sunFleckBtn.style.top = (p.y * 100) + '%';
+        sunFleckBtn.style.transform = 'translate(-50%,-120%)';
+        sunFleckBtn.style.zIndex = '6';
+      } catch {}
+      try { sunFleckBtn.textContent = 'sun-flecks'; } catch {}
+    }
+    try {
+      const small = btnPlay ? btnPlay.querySelector('small') : null;
+      if (small) small.textContent = s.ok ? 'at the warm spot — hold for sun-flecks' : 'at the warm spot';
+    } catch {}
+    try { if (btnPlay && s.ok) btnPlay.setAttribute('aria-describedby', 'sunFleckHint'); } catch {}
+  } catch {}
+}
 function renderButtons() {
   const sleep = sleepNow();
   try { btnTuck.querySelector('.actLabel').textContent = sleep ? 'Wake gently' : 'Tuck in'; } catch {}
@@ -640,6 +788,8 @@ function renderButtons() {
   } catch {}
   renderHealthNote();
   suggestRitual();
+  updateSunFleckAffordance();
+  updateSunGiftAffordance();
 }
 function suggestRitual() {
   try {
@@ -650,6 +800,14 @@ function suggestRitual() {
     if (sleepNow()) { try { if (btnTuck) btnTuck.classList.add('suggested'); } catch {} return; }
     if (sickNow() && btnMedicine && !btnMedicine.hidden) {
       try { btnMedicine.classList.add('suggested'); } catch {}
+      return;
+    }
+    if (sparkSpent()) {
+      try {
+        const alt = (Date.now() % 2 === 0) ? btnSit : btnBreathe;
+        const pick2 = alt && !alt.hidden && !alt.disabled ? alt : (btnSit.hidden ? btnBreathe : btnSit);
+        if (pick2 && !pick2.hidden && !pick2.disabled) pick2.classList.add('suggested');
+      } catch {}
       return;
     }
     let belly = NaN, heart = NaN, rest = NaN;
@@ -716,6 +874,12 @@ function busyNote() {
 /* Feed: drag the snack over; animation first, benefit after. */
 async function feedRitual() {
   if (busyNote() || !aliveNow() || needWake()) return;
+  if (sparkSpent() && !hungryNow()) {
+    const n = nameNow();
+    const w = sparkWord();
+    say(w === 'spent' ? n + ' feels spent and wants only nearness. Sitting close is plenty.' : n + ' feels sleepy and curls a little smaller. Sitting close is plenty.');
+    return;
+  }
   busy = true; renderButtons();
   goSpot('snack');
   safeAct('eat'); safeMood('hungry');
@@ -746,6 +910,12 @@ async function playRitual() {
   if (busyNote()) return;
   if (!aliveNow()) { say(nameNow() + ' is resting elsewhere just now. Nothing is spoiled.'); return; }
   if (needWake()) return;
+  if (sparkSpent()) {
+    const n0 = nameNow();
+    const w0 = sparkWord();
+    say(w0 === 'spent' ? n0 + ' feels spent and wants only nearness. Sitting close is plenty.' : n0 + ' feels sleepy and curls a little smaller. Sitting close is plenty.');
+    return;
+  }
   busy = true; renderButtons();
   playCancel = false;
   const n = nameNow();
@@ -789,6 +959,114 @@ async function playRitual() {
     noteRitual('play');
     renderAll();
     say(n + ' lights up and trots back for more.');
+  }
+}
+/* Sun-fleck: 30-45s, 2 rounds at sun spot, shares play affordance. Cancel pays nothing. */
+let sunFleckRunning = false;
+let fleckRoundLive = false;
+function spawnFleck(round) {
+  try {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'fleck';
+    b.setAttribute('aria-label', 'A shimmering sun-fleck. Activate to catch it.');
+    const p = spotXY('sun');
+    /* Deterministic per-round offset from the launcher home spot, so the
+       fleck never sits under the launcher even transiently. */
+    const OFFS = [{ dx: 0.055, dy: -0.045 }, { dx: -0.06, dy: 0.04 }];
+    const o = OFFS[(Number(round) || 0) % OFFS.length];
+    b.style.left = (((p.x + o.dx) * 100).toFixed(1)) + '%';
+    b.style.top = (((p.y + o.dy) * 100).toFixed(1)) + '%';
+    b.addEventListener('click', (e) => {
+      try { if (e) e.stopPropagation(); } catch {}
+      const rs = tapResolvers.splice(0);
+      for (const r of rs) swallow(() => r(true));
+    });
+    const host = stage || document.getElementById('stage');
+    if (!host) return null;
+    host.appendChild(b);
+    try { b.focus({ preventScroll: true }); } catch { try { b.focus(); } catch {} }
+    return b;
+  } catch { return null; }
+}
+function removeFleck(b) {
+  try { if (b && b.parentNode) b.parentNode.removeChild(b); } catch {}
+}
+function focusScene() {
+  try { canvas.focus({ preventScroll: true }); } catch { try { canvas.focus(); } catch {} }
+}
+async function sunFleckRitual(fromSpot) {
+  if (busyNote()) return;
+  if (sunFleckRunning) { say('One moment… still here with you.'); return; }
+  if (!aliveNow()) { say(nameNow() + ' is resting elsewhere just now. Nothing is spoiled.'); return; }
+  if (needWake()) return;
+  /* No stage gate here by spec — babies play the same game. Gating is
+     awake/sick/belly/sleep/spark/window only, via canSunFleck kind lines.
+     Decline always returns before the guide, never alongside it. */
+  if (sparkSpentOnly()) { say('Too sleepy for flecks. Sitting close is plenty.'); return; }
+  if (sparkWord() === 'sleepy' && !hungryNow()) {
+    const chk = sunFleckStatus();
+    if (!chk.ok && /spent/i.test(chk.reason || '')) { say('Too sleepy for flecks. Sitting close is plenty.'); return; }
+  }
+  const avail = sunFleckStatus();
+  if (!avail.ok) {
+    const r = String(avail.reason || '');
+    if (r.length > 12 && /\s/.test(r)) say(r);
+    else if (/spent/i.test(r)) say('Too sleepy for flecks. Sitting close is plenty.');
+    else say('Sun-flecks rest now. Back with daylight tomorrow — nothing missed.');
+    return;
+  }
+  sunFleckRunning = true;
+  busy = true; renderButtons();
+  playCancel = false;
+  const n = nameNow();
+  showPlayGuide('Tap the sun-fleck when it shimmers.');
+  if (playGuide && playGuide.hidden) { safeAct('idle'); busy = false; sunFleckRunning = false; persist(); renderAll(); say('One moment… still here with you.'); return; }
+  safeAct('play'); safeMood('happy');
+  goSpot('sun');
+  try { spotSun.classList.add('spot-glow'); } catch {}
+  chime('play');
+  let found = 0;
+  const rounds = 2;
+  let fleckEl = null;
+  while (found < rounds) {
+    goSpot('sun');
+    await wait(900);
+    if (playCancel) break;
+    fleckEl = spawnFleck(found);
+    fleckRoundLive = !!fleckEl;
+    const tapped = await waitCreatureTap(18000);
+    fleckRoundLive = false;
+    removeFleck(fleckEl); fleckEl = null;
+    if (playCancel || !tapped) break;
+    found += 1;
+    emote(found >= rounds ? '💛' : '✨');
+    chime('play');
+    safeReact('head');
+    await wait(500);
+  }
+  hidePlayGuide();
+  try { spotSun.classList.remove('spot-glow'); } catch {}
+  await wait(400);
+  if (playCancel || found < rounds) {
+    safeAct('idle');
+    busy = false; sunFleckRunning = false;
+    persist(); renderAll();
+    focusScene();
+    say(n + ' ambles back, happy just to be near. Another game anytime.');
+    return;
+  }
+  const res = swallow(() => doSunFleck(), null);
+  safeAct('idle');
+  busy = false; sunFleckRunning = false;
+  try { ui.lastSunFleckDay = todayStr(); storeUi(); } catch {}
+  persist(); renderAll();
+  focusScene();
+  if (res && res.ok === false) say((res && res.msg) || 'Sun-flecks rest now. Back with daylight tomorrow — nothing missed.');
+  else {
+    noteRitual('sun');
+    renderAll();
+    say((res && res.msg) || n + ' chased sun-flecks in the warm spot, pouncing soft as light.');
   }
 }
 /* Sit close: always available, tiny and kind. */
@@ -852,7 +1130,11 @@ async function tuckRitual() {
   const night = nightNow();
   noteRitual('tuck');
   renderAll();
-  say((res && res.msg) || (night ? 'Curled up small and drifted off. Rest well — they will be here.' : 'A short nap together. Even daylight naps help.'));
+  let tuckMsg = (res && res.msg) || (night ? 'Curled up small and drifted off. Rest well — they will be here.' : 'A short nap together. Even daylight naps help.');
+  try {
+    if (warnStage() === 'well' && !sickNow()) tuckMsg = String(tuckMsg).replace(/[.\s]+$/, '') + '. ' + nextTuckLine();
+  } catch {}
+  say(tuckMsg, 3600);
   if (ui.guided && ui.guideDuskActive && sleepNow()) {
     try { guideText.textContent = 'Tucked warm. When you are ready, wake gently — real night-times work just like this.'; } catch {}
   }
@@ -941,6 +1223,151 @@ async function medicineRitual() {
   }
 }
 
+/* ---------- v3: ambient loop (slow life, zero gain) + initiative ---------- */
+const bootAt = Date.now();
+function openMinutes() { try { return (Date.now() - bootAt) / 60000; } catch { return 0; } }
+function lastRitualMinutes() {
+  try {
+    if (!lastRitualAt) return 99;
+    return (Date.now() - lastRitualAt) / 60000;
+  } catch { return 99; }
+}
+function trustFondPlus() {
+  try { return /fond|close|devoted/i.test(trustWord() || ''); } catch { return false; }
+}
+function wellNow() {
+  try { return warnStage() === 'well' && !sickNow() && !sleepNow() && aliveNow() && stageNow() !== 'egg'; } catch { return false; }
+}
+let ambientNextAt = Date.now() + 540000 + Math.random() * 300000;
+function jitterAmbient() { ambientNextAt = Date.now() + 540000 + Math.random() * 300000; }
+function ambientDiaryCountToday() {
+  try {
+    if (ui.ambientDiaryDay !== todayStr()) return 0;
+    return Number(ui.ambientDiaryCount) || 0;
+  } catch { return 0; }
+}
+function ambientDiaryPush(line) {
+  if (ambientDiaryCountToday() >= 3) return false;
+  const ok = diaryPush(line);
+  if (!ok) return false;
+  try {
+    if (ui.ambientDiaryDay !== todayStr()) { ui.ambientDiaryDay = todayStr(); ui.ambientDiaryCount = 0; }
+    ui.ambientDiaryCount = (Number(ui.ambientDiaryCount) || 0) + 1;
+    storeUi();
+  } catch {}
+  renderShelves(); persist();
+  return true;
+}
+let ambientGiftPending = null;
+const AMBIENT_GIFTS = ['sunlit mote', 'warm hush', 'soft glint'];
+function ambientGiftWeekOk() {
+  try {
+    const last = Number(ui.lastAmbientGiftAt) || 0;
+    return (Date.now() - last) > 7 * 24 * 60 * 60 * 1000;
+  } catch { return false; }
+}
+function updateSunGiftAffordance() {
+  try {
+    if (!sunGiftBtn) return;
+    if (!ambientGiftPending || main.hidden || !aliveNow() || busy) { sunGiftBtn.hidden = true; return; }
+    sunGiftBtn.hidden = false;
+    try {
+      const p = spotXY('sun');
+      sunGiftBtn.style.position = 'absolute';
+      sunGiftBtn.style.left = (p.x * 100) + '%';
+      sunGiftBtn.style.top = (p.y * 100) + '%';
+      sunGiftBtn.style.transform = 'translate(-50%,40%)';
+      sunGiftBtn.style.zIndex = '6';
+    } catch {}
+  } catch {}
+}
+function leaveAmbientGift() {
+  if (!ambientGiftWeekOk()) return;
+  if (ambientGiftPending) return;
+  try {
+    const pick = AMBIENT_GIFTS[Math.floor(Math.random() * AMBIENT_GIFTS.length)];
+    ambientGiftPending = pick;
+    goSpot('sun');
+    emote('✨', 0.24, 0.3);
+    say('Left a tiny something at the warm spot, just for you.');
+    updateSunGiftAffordance();
+  } catch {}
+}
+function takeAmbientGift() {
+  if (!ambientGiftPending) return;
+  if (!ambientGiftWeekOk()) { ambientGiftPending = null; try { sunGiftBtn.hidden = true; } catch {} return; }
+  const item = ambientGiftPending;
+  ambientGiftPending = null;
+  try { sunGiftBtn.hidden = true; } catch {}
+  try {
+    keepsakePush(item, 'Found at the warm spot while you were near — left softly, kept warmly.');
+    ambientDiaryPush('Found ' + item + ' at the warm spot, left softly while you were near.');
+  } catch {}
+  try { ui.lastAmbientGiftAt = Date.now(); storeUi(); } catch {}
+  persist(); renderShelves(); renderButtons();
+  emote('🎁');
+  chime('gift');
+  say('Kept ' + item + ' on the shelf, warm from the sun spot.');
+}
+function ambientBeat() {
+  try {
+    if (main.hidden || document.hidden || !aliveNow() || busy || stageNow() === 'egg') return;
+    if (sleepNow()) {
+      emote('💭', wander.x, wander.y - 0.08);
+      try { spotNest.classList.add('spot-glow'); } catch {}
+      setTimeout(() => { try { spotNest.classList.remove('spot-glow'); } catch {} }, 2000);
+      if ((ui.ambientDreamDay || '') !== todayStr()) {
+        ui.ambientDreamDay = todayStr(); storeUi();
+        ambientDiaryPush('Dreamed softly in the nest while you were near.');
+      }
+      return;
+    }
+    if (!wellNow()) return;
+    if (ambientGiftPending) return;
+    if (trustFondPlus() && ambientGiftWeekOk() && Math.random() < 0.3) { leaveAmbientGift(); return; }
+    try {
+      ritualTarget = { x: clamp01(gaze.x + (Math.random() - 0.5) * 0.1), y: clamp01(gaze.y + (Math.random() - 0.5) * 0.1) };
+      wander.pause = 0;
+    } catch {}
+    emote('♪');
+    safeReact('head');
+  } catch {}
+}
+let lastInitiativeCheck = 0;
+function initiativeBeat() {
+  try {
+    if (main.hidden || document.hidden || !aliveNow() || busy || stageNow() === 'egg') return;
+    if (sleepNow() || sickNow()) return;
+    if (Date.now() - lastInitiativeCheck < 60000) return;
+    lastInitiativeCheck = Date.now();
+    const openMin = openMinutes();
+    const lastMin = lastRitualMinutes();
+    if (openMin < 3 || lastMin <= 5) return;
+    if (sparkSpentOnly()) return;
+    const want = doInitiative(openMin, lastMin);
+    if (want && (want.kind || want.spot)) {
+      const spot = want.spot || 'snack';
+      goSpot(spot);
+      setTimeout(() => { try { safeReact('head'); } catch {} }, 900);
+      let line = 'Seems to be asking — looking back at you.';
+      if (spot === 'snack') line = 'Seems to be asking — glancing at the snack corner.';
+      else if (spot === 'sun') line = 'Seems to be asking — glancing at the warm spot.';
+      else if (spot === 'nest') line = 'Seems to be asking — glancing at the nest.';
+      say(line, 3400);
+      return;
+    }
+    const g = doGrantGift();
+    if (g && (g.item || g.name)) {
+      const item = String(g.item || g.name || 'a small wonder');
+      goSpot('sun');
+      emote('🎁');
+      chime('gift');
+      persist(); renderShelves(); renderAll();
+      say('Brought you ' + item + ' for no reason — just wanted you to have it.', 3600);
+    }
+  } catch {}
+}
+
 /* ---------- snack drag + creature tap ---------- */
 let dragOn = false;
 function stagePos(e) {
@@ -1014,6 +1441,7 @@ function creatureTap() {
     return;
   }
   safeReact('back');
+  if (fleckRoundLive) { emote('·', wander.x, wander.y - 0.06, 'miss miss-dot'); say('almost — try again', 1200); return; }
   const rs = tapResolvers.splice(0);
   for (const r2 of rs) swallow(() => r2(true));
   if (rs.length) return;
@@ -1039,14 +1467,48 @@ swallow(() => {
         for (const r2 of rs0) swallow(() => r2(false));
         return;
       }
+      if (fleckRoundLive) {
+        emote('·', p.x, p.y, 'miss miss-dot');
+        say('almost — try again', 1200);
+        return;
+      }
       const rs = tapResolvers.splice(0);
       for (const r2 of rs) swallow(() => r2(true));
       if (rs.length) return;
       if (busy) { say('One moment… still here with you.'); return; }
-      if (!tapResolvers.length && playRound === null) sitRitual();
+      if (ambientGiftPending) {
+        const ds = Math.hypot(p.x - 0.24, p.y - 0.3);
+        if (ds < 0.28) { takeAmbientGift(); return; }
+      }
+      if (!tapResolvers.length && playRound === null) {
+        const dsun = Math.hypot(p.x - 0.24, p.y - 0.3);
+        if (dsun < 0.22 && !sunFleckBtn.hidden) { sunFleckRitual(true); return; }
+        sitRitual();
+      }
+      return;
     } else if (tapResolvers.length) {
+      const dsun = Math.hypot(p.x - 0.24, p.y - 0.3);
+      if (dsun < 0.22) {
+        const rs2 = tapResolvers.splice(0);
+        for (const r2 of rs2) swallow(() => r2(true));
+        return;
+      }
       emote('·', p.x, p.y, 'miss miss-dot');
       say('almost — try again', 1200);
+    } else {
+      const dsun = Math.hypot(p.x - 0.24, p.y - 0.3);
+      if (dsun < 0.2 && !busy && aliveNow() && !sleepNow() && stageNow() !== 'egg') {
+        if (ambientGiftPending) { takeAmbientGift(); return; }
+        const s = sunFleckStatus();
+        if (s.ok || !sunFleckBtn.hidden) { sunFleckRitual(true); return; }
+        if (!s.ok) {
+          const rr = String(s.reason || '');
+          if (rr.length > 12 && /\s/.test(rr)) say(rr);
+          else if (/spent/i.test(rr)) say('Too sleepy for flecks. Sitting close is plenty.');
+          else say('Sun-flecks rest now. Back with daylight tomorrow — nothing missed.');
+          return;
+        }
+      }
     }
   });
   canvas.addEventListener('keydown', (e) => {
@@ -1056,8 +1518,32 @@ swallow(() => {
       if (tapResolvers.length) { say('Paused the game. No hurry at all.'); cancelCreatureWait(); }
     }
   });
-  spotSun.addEventListener('click', () => { if (busy) say('One moment… still here with you.'); else playRitual(); });
+  spotSun.addEventListener('click', () => { if (busy) say('One moment… still here with you.'); else sunFleckRitual(true); });
   spotNest.addEventListener('click', () => { if (busy) say('One moment… still here with you.'); else tuckRitual(); });
+  try {
+    if (statusLine) {
+      const expandAsk = () => {
+        try {
+          if (!aliveNow() || main.hidden) return;
+          if (warnStage() !== 'well' || sickNow()) return;
+          healthNote.hidden = false;
+          healthText.textContent = ASK_COPY;
+        } catch {}
+      };
+      statusLine.addEventListener('click', expandAsk);
+      statusLine.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { swallow(() => e.preventDefault()); expandAsk(); }
+      });
+    }
+  } catch {}
+  try {
+    if (sunFleckBtn) {
+      sunFleckBtn.addEventListener('click', (e) => { try { if (e) e.stopPropagation(); } catch {} sunFleckRitual(true); });
+    }
+    if (sunGiftBtn) {
+      sunGiftBtn.addEventListener('click', (e) => { try { if (e) e.stopPropagation(); } catch {} takeAmbientGift(); });
+    }
+  } catch {}
 });
 swallow(() => {
   /* spots are decorative glows; ritual taps live on canvas + buttons */
@@ -1067,7 +1553,28 @@ swallow(() => {
 });
 swallow(() => {
   btnFeed.addEventListener('click', () => { goSpot('snack'); feedRitual(); });
-  btnPlay.addEventListener('click', playRitual);
+  try {
+    let playHoldTimer = 0, playHeld = false;
+    btnPlay.addEventListener('pointerdown', () => {
+      playHeld = false;
+      clearTimeout(playHoldTimer);
+      playHoldTimer = setTimeout(() => { playHeld = true; sunFleckRitual(true); }, 550);
+    });
+    const playHoldClear = () => { clearTimeout(playHoldTimer); };
+    btnPlay.addEventListener('pointerup', playHoldClear);
+    btnPlay.addEventListener('pointercancel', playHoldClear);
+    btnPlay.addEventListener('pointerleave', playHoldClear);
+    btnPlay.addEventListener('click', (e) => {
+      if (playHeld) { playHeld = false; try { if (e) e.preventDefault(); } catch {} return; }
+      playRitual();
+    });
+    btnPlay.addEventListener('keydown', (e) => {
+      if (e.repeat) return;
+      if (e.shiftKey && (e.key === 'Enter' || e.key === ' ')) { swallow(() => e.preventDefault()); sunFleckRitual(true); }
+    });
+    btnPlay.addEventListener('contextmenu', (e) => swallow(() => e.preventDefault()));
+  } catch {}
+  try { if (sunFleckBtn) sunFleckBtn.addEventListener('keydown', (e) => { if (e.key === 'Escape') { swallow(() => e.preventDefault()); say('Paused the game. No hurry at all.'); cancelCreatureWait(); } }); } catch {}
   btnSit.addEventListener('click', sitRitual);
   btnTuck.addEventListener('click', tuckRitual);
   btnMedicine.addEventListener('click', medicineRitual);
@@ -1241,6 +1748,12 @@ let excursionRunning = false;
 let lastExcursionTry = 0;
 async function excursionRitual() {
   if (busy || excursionRunning || !aliveNow() || sleepNow() || sickNow()) return;
+  if (sparkSpent()) {
+    const n = nameNow();
+    const w = sparkWord();
+    say(w === 'spent' ? n + ' feels spent and wants only nearness. Sitting close is plenty.' : n + ' feels sleepy and curls a little smaller. Sitting close is plenty.');
+    return;
+  }
   const can = swallow(() => (typeof engine.canExcursion === 'function' ? engine.canExcursion() : false), false);
   if (!can) {
     const res = swallow(() => (typeof engine.excursion === 'function' ? engine.excursion() : null), null);
@@ -1276,6 +1789,10 @@ async function excursionRitual() {
 }
 function maybeExcursion() {
   if (main.hidden || busy || excursionRunning || !aliveNow()) return;
+  /* Excursions begin at child — egg and baby stay silent, no toast or throttle. */
+  try { const st = stageNow(); if (st === 'egg' || st === 'baby') return; } catch {}
+  try { if (typeof sunFleckRunning !== 'undefined' && sunFleckRunning) return; } catch {}
+  try { if (playGuide && !playGuide.hidden) return; } catch {}
   const h = new Date().getHours();
   if (h < 11 || h >= 17) return;
   if (Date.now() - lastExcursionTry < 5 * 60 * 1000) return;
@@ -1283,6 +1800,8 @@ function maybeExcursion() {
   const can = swallow(() => (typeof engine.canExcursion === 'function' ? engine.canExcursion() : false), false);
   if (!can) {
     if (ui.excursionRefusedDay !== todayStr()) {
+      /* Suppressed game guide active — wait quietly, no toast, no state change. */
+      try { if ((typeof sunFleckRunning !== 'undefined' && sunFleckRunning) || (playGuide && !playGuide.hidden)) return; } catch {}
       ui.excursionRefusedDay = todayStr(); storeUi();
       lastExcursionTry = Date.now();
       const res = swallow(() => (typeof engine.excursion === 'function' ? engine.excursion() : null), null);
@@ -1361,7 +1880,19 @@ function showWelcomeBack(awayMinutes, events, story) {
       : n + ' notices you and comes rushing over, glowing all over — so glad you are back. ';
     if (clean.length) t += 'While you were away for ' + spanWords(awayMinutes) + ', ' + clean.join(' ') + '. ';
     else t += 'While you were away for ' + spanWords(awayMinutes) + ', the little home kept warm. ';
-    const hasSpoiled = /spoiled/i.test(clean.join(' ') + ' ' + greet);
+    try {
+      const extra = doAnniversary();
+      if (extra) t += tidy(extra) + '. ';
+    } catch {}
+    try {
+      const lastLong = Number(ui.lastLongPauseAt) || 0;
+      const weekOk = (Date.now() - lastLong) > 7 * 24 * 60 * 60 * 1000;
+      if (weekOk) {
+        t += LONG_PAUSE_LINE + ' ';
+        ui.lastLongPauseAt = Date.now(); storeUi();
+      }
+    } catch {}
+    const hasSpoiled = /spoiled/i.test(clean.join(' ') + ' ' + greet + ' ' + t);
     if (!hasSpoiled) t += 'Nothing is spoiled — pick up wherever you are.';
     else t = t.trim().replace(/[.\s]+$/, '') + '.';
     t = String(t).replace(/;+/g, ',').replace(/\.{2,}/g, '.').replace(/\s{2,}/g, ' ').trim();
@@ -1527,7 +2058,14 @@ function frame(now) {
       try {
         if (ES().breakSuggested && breakNote.hidden) breakNote.hidden = false;
       } catch {}
-    }
+      try {
+        if (document.hidden) { jitterAmbient(); }
+        else {
+          if (Date.now() >= ambientNextAt) { jitterAmbient(); ambientBeat(); }
+          initiativeBeat();
+        }
+      } catch {}
+    } else if (document.hidden) { try { jitterAmbient(); } catch {} }
   }
   if (saveAcc >= 10) {
     saveAcc = 0;

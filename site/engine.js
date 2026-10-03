@@ -20,6 +20,27 @@ const streakWord = (n) => {
   return 'many';
 };
 
+const SPARK_ORDER = ['bright', 'soft', 'sleepy', 'spent'];
+const sparkIdx = (s) => {
+  const i = SPARK_ORDER.indexOf(s);
+  return i < 0 ? 0 : i;
+};
+const GIFT_ITEMS = [
+  ['warm button', 'kept from an unprompted gift — carried over for no reason, just wanted you to have it'],
+  ['bent straw', 'kept from an unprompted gift — found on a quiet wander and saved for you'],
+  ['round pebble', 'kept from an unprompted gift — smooth from being carried with care'],
+];
+function daysBetween(aStr, bStr) {
+  try {
+    const a = new Date(String(aStr) + 'T00:00:00Z');
+    const b = new Date(String(bStr) + 'T00:00:00Z');
+    if (isNaN(a) || isNaN(b)) return 9999;
+    return Math.round((b - a) / 86400000);
+  } catch { return 9999; }
+}
+function isNightHour(h) { return h >= 21 || h < 7; }
+function isMorningHour(h) { return h >= 5 && h < 12; }
+
 export function statWord(n, kind) {
   const v = clamp(Number(n) || 0, 0, 100);
   if (kind === 'belly') {
@@ -143,6 +164,15 @@ function freshState(init = {}) {
     breakfastStreak: 0,
     lastBreakfastDay: '',
     breakfastMentionedDay: '',
+    spark: 'bright',
+    lastSunFleckDay: '',
+    lastSunFleckKeepsakeDay: '',
+    initiativeDay: '',
+    initiativeCount: 0,
+    unpromptedGiftWeek: [],
+    lastGrewDay: '',
+    annivMentioned: {},
+    lastTuckWasNight: false,
   };
   if (typeof init.name === 'string' && init.name.trim()) st.name = init.name.trim().slice(0, 24);
   if (Number.isFinite(init.accentHue)) st.accentHue = clamp(init.accentHue, 0, 360);
@@ -189,6 +219,15 @@ function freshState(init = {}) {
   if (Number.isFinite(+init.breakfastStreak)) st.breakfastStreak = Math.max(0, Math.floor(+init.breakfastStreak));
   if (typeof init.lastBreakfastDay === 'string') st.lastBreakfastDay = init.lastBreakfastDay;
   if (typeof init.breakfastMentionedDay === 'string') st.breakfastMentionedDay = init.breakfastMentionedDay;
+  if (typeof init.spark === 'string' && SPARK_ORDER.includes(init.spark)) st.spark = init.spark;
+  if (typeof init.lastSunFleckDay === 'string') st.lastSunFleckDay = init.lastSunFleckDay;
+  if (typeof init.lastSunFleckKeepsakeDay === 'string') st.lastSunFleckKeepsakeDay = init.lastSunFleckKeepsakeDay;
+  if (typeof init.initiativeDay === 'string') st.initiativeDay = init.initiativeDay;
+  if (Number.isFinite(+init.initiativeCount)) st.initiativeCount = Math.max(0, Math.floor(+init.initiativeCount));
+  if (Array.isArray(init.unpromptedGiftWeek)) st.unpromptedGiftWeek = [...init.unpromptedGiftWeek].map(String).slice(-14);
+  if (typeof init.lastGrewDay === 'string') st.lastGrewDay = init.lastGrewDay;
+  if (init.annivMentioned && typeof init.annivMentioned === 'object') st.annivMentioned = { ...init.annivMentioned };
+  if (typeof init.lastTuckWasNight === 'boolean') st.lastTuckWasNight = init.lastTuckWasNight;
   return st;
 }
 
@@ -269,6 +308,15 @@ export function deserialize(text) {
   if (Number.isFinite(+raw.breakfastStreak)) st.breakfastStreak = Math.max(0, Math.floor(+raw.breakfastStreak));
   if (typeof raw.lastBreakfastDay === 'string') st.lastBreakfastDay = raw.lastBreakfastDay;
   if (typeof raw.breakfastMentionedDay === 'string') st.breakfastMentionedDay = raw.breakfastMentionedDay;
+  if (typeof raw.spark === 'string' && SPARK_ORDER.includes(raw.spark)) st.spark = raw.spark;
+  if (typeof raw.lastSunFleckDay === 'string') st.lastSunFleckDay = raw.lastSunFleckDay;
+  if (typeof raw.lastSunFleckKeepsakeDay === 'string') st.lastSunFleckKeepsakeDay = raw.lastSunFleckKeepsakeDay;
+  if (typeof raw.initiativeDay === 'string') st.initiativeDay = raw.initiativeDay;
+  if (Number.isFinite(+raw.initiativeCount)) st.initiativeCount = Math.max(0, Math.floor(+raw.initiativeCount));
+  if (Array.isArray(raw.unpromptedGiftWeek)) st.unpromptedGiftWeek = raw.unpromptedGiftWeek.map(String).slice(-14);
+  if (typeof raw.lastGrewDay === 'string') st.lastGrewDay = raw.lastGrewDay;
+  if (raw.annivMentioned && typeof raw.annivMentioned === 'object') st.annivMentioned = { ...raw.annivMentioned };
+  if (typeof raw.lastTuckWasNight === 'boolean') st.lastTuckWasNight = raw.lastTuckWasNight;
   return st;
 }
 
@@ -335,12 +383,27 @@ export function createEngine(initial = {}) {
     }
     if (order.indexOf(want) > order.indexOf(st.stage)) {
       st.stage = want;
+      try { st.lastGrewDay = todayStr(); } catch { /* keep */ }
       const [kn, ks] = growthKeepsakeFor(want, st.name);
       pushKeepsake(st, kn, ks);
       pushDiary(st, `${st.name} grew into a new season of smallness.`);
       return want;
     }
     return null;
+  }
+
+  function getSparkWord() {
+    return SPARK_ORDER.includes(state.spark) ? state.spark : 'bright';
+  }
+  function spendSpark(kind) {
+    const costly = ['feed', 'play', 'excursion', 'sunfleck', 'sun-fleck', 'sunFleck'];
+    if (!costly.includes(kind)) return;
+    const i = sparkIdx(state.spark);
+    if (i < SPARK_ORDER.length - 1) state.spark = SPARK_ORDER[i + 1];
+  }
+  function restoreSparkStep() {
+    const i = sparkIdx(state.spark);
+    if (i > 0) state.spark = SPARK_ORDER[i - 1];
   }
 
   function markShown() {
@@ -506,6 +569,12 @@ export function createEngine(initial = {}) {
         grew = g;
         events.push({ type: 'grew', stage: g });
       }
+      if (step >= 60) {
+        try {
+          const h = new Date().getHours();
+          if (isMorningHour(h) && trajectory() === 'steady') restoreSparkStep();
+        } catch { /* keep */ }
+      }
       updateMood(state);
     }
     updateMood(state);
@@ -530,10 +599,17 @@ export function createEngine(initial = {}) {
     }
   }
 
-  function afterRitual(trustGain) {
-    state.trust = clamp(state.trust + trustGain, 0, 100);
+  function afterRitual(trustGain, kind) {
+    let gain = trustGain;
+    let k = kind;
+    if (typeof gain === 'string' && k === undefined) {
+      k = gain;
+      gain = 0;
+    }
+    state.trust = clamp(state.trust + (Number(gain) || 0), 0, 100);
     state.ritualsDone += 1;
     noteCareAction();
+    if (typeof k === 'string' && k) spendSpark(k);
     if (state.thinMinutes > 0 && state.warnStage === 1) {
       const good = state.needs.belly >= 40 && state.needs.heart >= 40 && state.needs.sleep >= 40;
       if (good) {
@@ -553,6 +629,9 @@ export function createEngine(initial = {}) {
     if (state.stage === 'egg') return fail('The egg needs warmth and waiting, not food yet.');
     if (state.sleeping) return fail('Fast asleep — waking first would be kinder.');
     if (state.needs.belly >= 95) return fail(`${state.name} is full and happy. A little company is plenty.`);
+    if (state.spark === 'spent' && statWord(state.needs.belly, 'belly') === 'content') {
+      return fail(`${state.name} feels spent and wants only nearness. Sitting close is plenty for now.`);
+    }
     const wasLow = state.needs.belly < 50;
     state.needs.belly = clamp(state.needs.belly + 18, 0, 100);
     state.health = clamp(state.health + 2, 0, 100);
@@ -565,7 +644,7 @@ export function createEngine(initial = {}) {
       }
     }
     pushDiary(state, `Shared a warm meal with ${state.name}.`);
-    const g = afterRitual(wasLow ? 3 : 2);
+    const g = afterRitual(wasLow ? 3 : 2, 'feed');
     return ok(`${state.name} eats slowly, then looks up, glad.`, true, g ? { grew: g } : {});
   }
 
@@ -574,12 +653,13 @@ export function createEngine(initial = {}) {
     if (dead) return dead;
     if (state.stage === 'egg') return fail('Not yet — little one still needs quiet to grow.');
     if (state.sleeping) return fail('Let them dream a little longer; play can wait.');
+    if (state.spark === 'spent') return fail(`${state.name} feels spent and wants only nearness. Sitting close is plenty for now.`);
     if (state.needs.sleep < 20) return fail(`${state.name} is too sleepy to play. A nap together first?`);
     state.needs.heart = clamp(state.needs.heart + 20, 0, 100);
     state.needs.belly = clamp(state.needs.belly - 4, 0, 100);
     state.needs.sleep = clamp(state.needs.sleep - 3, 0, 100);
     pushDiary(state, `Played a small game with ${state.name} by the sun spot.`);
-    const g = afterRitual(2);
+    const g = afterRitual(2, 'play');
     return ok(`${state.name} lights up and trots back for more.`, true, g ? { grew: g } : {});
   }
 
@@ -596,7 +676,7 @@ export function createEngine(initial = {}) {
     }
     state.needs.heart = clamp(state.needs.heart + 6, 0, 100);
     pushDiary(state, `Sat close with ${state.name} for a quiet while.`);
-    const g = afterRitual(1);
+    const g = afterRitual(1, 'sit');
     if (state.warnStage === 3) state.health = clamp(state.health + 1, 0, 100);
     updateMood(state);
     return ok(`${state.name} leans in close, soft and warm.`, true, g ? { grew: g } : {});
@@ -610,7 +690,7 @@ export function createEngine(initial = {}) {
     state.needs.heart = clamp(state.needs.heart + 6, 0, 100);
     state.scared = false;
     pushDiary(state, `Breathed slowly together with ${state.name}.`);
-    const g = afterRitual(wasAfraid ? 4 : 2);
+    const g = afterRitual(wasAfraid ? 4 : 2, 'breathe');
     if (wasAfraid) return ok(`${state.name} settles against you, and the quiet settles over you too.`, true, g ? { grew: g } : {});
     return ok(`You breathe together for a while. ${state.name} seems glad to be near.`, true, g ? { grew: g } : {});
   }
@@ -620,10 +700,11 @@ export function createEngine(initial = {}) {
     if (dead) return dead;
     if (state.stage === 'egg') return fail('The egg is already tucked in warm.');
     if (state.sleeping) return fail('Already dreaming softly.');
+    try { state.lastTuckWasNight = isNightHour(new Date().getHours()); } catch { state.lastTuckWasNight = false; }
     state.sleeping = true;
     state.needs.heart = clamp(state.needs.heart + 2, 0, 100);
     pushDiary(state, `Tucked ${state.name} in for a rest.`);
-    const g = afterRitual(1);
+    const g = afterRitual(1, 'tuck');
     return ok(`${state.name} curls up small and drifts off. Rest well — they will be here.`, true, g ? { grew: g } : {});
   }
 
@@ -631,7 +712,15 @@ export function createEngine(initial = {}) {
     const dead = needAlive();
     if (dead) return dead;
     if (!state.sleeping) return fail('Already awake and puttering about.');
+    const wasNight = !!state.lastTuckWasNight;
     state.sleeping = false;
+    if (wasNight) {
+      state.spark = 'bright';
+    } else {
+      const i = sparkIdx(state.spark);
+      if (i > sparkIdx('soft')) state.spark = 'soft';
+    }
+    state.lastTuckWasNight = false;
     updateMood(state);
     return ok(`${state.name} blinks awake and looks for you.`);
   }
@@ -659,7 +748,7 @@ export function createEngine(initial = {}) {
       pushDiary(state, `Nursed ${state.name} back to comfort with medicine and patience.`);
       state.warnStage = state.thinMinutes >= 720 ? 1 : 0;
       state.lastNursedDay = todayStr();
-      const g = afterRitual(3);
+      const g = afterRitual(3, 'medicine');
       return ok(`${state.name} feels the care working and rests easier now. Well done.`, true, g ? { grew: g } : {});
     }
     const missing = [];
@@ -782,6 +871,7 @@ export function createEngine(initial = {}) {
     if (top && !state.sick && state.warnStage === 0) hint = `${state.name} feels settled and glad to be near you.`;
     if (state.sleeping) hint = `${state.name} is tucked in and dreaming softly.`;
     if (!state.alive) hint = `${state.name} is at rest, loved the whole time.`;
+    const traj = trajectory();
     return {
       words,
       mood: state.moodWord,
@@ -792,7 +882,10 @@ export function createEngine(initial = {}) {
       stage: state.stage,
       name: state.name,
       hint,
-      trajectory: trajectory(),
+      trajectory: traj,
+      trajectoryWord: traj,
+      spark: getSparkWord(),
+      sparkWord: getSparkWord(),
     };
   }
 
@@ -874,6 +967,7 @@ export function createEngine(initial = {}) {
     if (state.stage === 'egg' || state.stage === 'baby') return fail('Little one is still too small to wander — staying near is best.');
     if (state.sleeping) return fail('Fast asleep — adventures can wait until morning.');
     if (state.sick || state.scared) return fail('Wants nearness right now, not adventure. A quiet moment together first?');
+    if (state.spark === 'spent') return fail(`${state.name} feels spent and wants only nearness. Sitting close is plenty for now.`);
     if (state.lastExcursionDay === todayStr()) return fail('Already had one little adventure today — rest feels best now.');
     if (state.needs.belly < 55 || state.needs.heart < 55 || state.needs.sleep < 50) {
       return fail(`${state.name} would love to wander, but a snack and some company first would help.`);
@@ -885,8 +979,152 @@ export function createEngine(initial = {}) {
     pushKeepsake(state, pick[0], `${state.name} came back from a little adventure with ${pick[0]} — ${pick[1]}.`);
     pushDiary(state, `${state.name} came back from a little adventure with ${pick[0]}.`);
     state.needs.heart = clamp(state.needs.heart + 5, 0, 100);
-    const g = afterRitual(2);
+    const g = afterRitual(2, 'excursion');
     return ok(`${state.name} trots back with ${pick[0]}, proud to show you.`, true, { find: pick[0], grew: g || undefined });
+  }
+
+  function canSunFleck(now) {
+    let d;
+    try {
+      if (now instanceof Date) d = now;
+      else if (Number.isFinite(+now) && +now > 0) d = new Date(+now);
+      else if (now == null) d = new Date();
+      else d = new Date();
+    } catch { d = new Date(); }
+    let h = 12;
+    let today = todayStr();
+    try {
+      h = d.getHours();
+      today = dayStrOf(d);
+    } catch { /* keep defaults */ }
+    if (h < 10 || h > 17) return { ok: false, reason: 'Sun-flecks rest now. Back with daylight tomorrow — nothing missed.' };
+    if (state.lastSunFleckDay === today) return { ok: false, reason: 'Sun-flecks rest now. Back with daylight tomorrow — nothing missed.' };
+    if (!state.alive) return { ok: false, reason: `${state.name} is at rest, loved the whole time.` };
+    if (state.stage === 'egg') return { ok: false, reason: 'Not yet — little one still needs quiet to grow.' };
+    if (state.sleeping) return { ok: false, reason: `${state.name} is dreaming softly. Sun-flecks can wait.` };
+    if (state.sick) return { ok: false, reason: `${state.name} wants nearness right now, not chasing. Sitting close is plenty.` };
+    if (statWord(state.needs.belly, 'belly') === 'starving') return { ok: false, reason: `${state.name} feels too hungry for flecks. A snack first?` };
+    if (statWord(state.needs.sleep, 'sleep') === 'exhausted') return { ok: false, reason: `${state.name} feels too sleepy for flecks. A nap together first?` };
+    if (state.spark === 'spent') return { ok: false, reason: 'Too sleepy for flecks. Sitting close is plenty.' };
+    return { ok: true, reason: '' };
+  }
+
+  function playSunFleck(now) {
+    const dead = needAlive();
+    if (dead) return { ...dead, completed: false };
+    const gate = canSunFleck(now);
+    if (!gate.ok) return fail(gate.reason);
+    let today = todayStr();
+    try {
+      if (now instanceof Date) today = dayStrOf(now);
+      else if (Number.isFinite(+now) && +now > 0) today = dayStrOf(new Date(+now));
+    } catch { /* keep */ }
+    const prevKeepsakeDay = state.lastSunFleckKeepsakeDay;
+    state.lastSunFleckDay = today;
+    let give = true;
+    if (prevKeepsakeDay) {
+      try {
+        if (daysBetween(prevKeepsakeDay, today) < 3) give = false;
+      } catch { give = true; }
+    }
+    if (give) {
+      pushKeepsake(state, 'sun fleck', `Kept from chasing sun-flecks with ${state.name} in the warm spot.`);
+      state.lastSunFleckKeepsakeDay = today;
+    }
+    pushDiary(state, `Chased sun-flecks with ${state.name} in the warm spot.`);
+    const g = afterRitual(2, 'sunfleck');
+    return ok(`${state.name} pounces and tumbles through the sun-flecks, glowing.`, true, g ? { grew: g } : {});
+  }
+
+  function checkInitiative(openMinutes, lastRitualMinutes) {
+    const today = todayStr();
+    if (state.initiativeDay !== today) {
+      state.initiativeDay = today;
+      state.initiativeCount = 0;
+    }
+    const open = Number(openMinutes);
+    const last = Number(lastRitualMinutes);
+    if (!Number.isFinite(open) || open < 3) return null;
+    if (!Number.isFinite(last) || last <= 5) return null;
+    if (!state.alive) return null;
+    if (state.stage === 'egg') return null;
+    if (state.sleeping) return null;
+    if (state.sick) return null;
+    if (state.spark === 'spent') return null;
+    if (state.initiativeCount >= 2) return null;
+    let spot = 'snack';
+    try {
+      const low = lowestNeed();
+      if (low.key === 'belly') spot = 'snack';
+      else if (low.key === 'heart') spot = 'sun';
+      else spot = 'nest';
+    } catch { spot = 'snack'; }
+    state.initiativeCount += 1;
+    return { kind: 'want', spot };
+  }
+
+  function grantGift() {
+    if (!state.alive) return null;
+    if (state.stage === 'egg') return null;
+    const today = todayStr();
+    if (!Array.isArray(state.unpromptedGiftWeek)) state.unpromptedGiftWeek = [];
+    try {
+      state.unpromptedGiftWeek = state.unpromptedGiftWeek.filter((d) => daysBetween(String(d), today) <= 7);
+    } catch { state.unpromptedGiftWeek = []; }
+    if (state.unpromptedGiftWeek.includes(today)) return null;
+    if (state.unpromptedGiftWeek.length >= 2) return null;
+    if (state.trust < 30) return null;
+    if (state.lastBreakfastDay !== today) return null;
+    const pick = GIFT_ITEMS[Math.floor(Math.random() * GIFT_ITEMS.length)];
+    const item = pick[0];
+    const story = `Brought you ${item} for no reason — just wanted you to have it.`;
+    pushKeepsake(state, item, `${state.name} ${story} Kept with care.`);
+    pushDiary(state, `${state.name} ${story}`);
+    state.unpromptedGiftWeek.push(today);
+    return { item, story };
+  }
+
+  function anniversaryLine(todayParam) {
+    let today = todayStr();
+    if (typeof todayParam === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(todayParam)) today = todayParam;
+    if (!state.alive) return null;
+    if (state.stage === 'egg') return null;
+    if (!state.annivMentioned || typeof state.annivMentioned !== 'object') state.annivMentioned = {};
+    const N = state.name;
+    let hatchDay = '';
+    try { hatchDay = dayStrOf(new Date(state.bornAt)); } catch { hatchDay = ''; }
+    const diffHatch = hatchDay ? daysBetween(hatchDay, today) : 9999;
+    const diffNursed = state.lastNursedDay ? daysBetween(state.lastNursedDay, today) : 9999;
+    const diffGrew = state.lastGrewDay ? daysBetween(state.lastGrewDay, today) : 9999;
+    const diffGift = state.lastGiftDay ? daysBetween(state.lastGiftDay, today) : 9999;
+    if (diffHatch === 7 && state.annivMentioned['hatch'] !== today) {
+      state.annivMentioned['hatch'] = today;
+      return `A week with you now. Tiny at hatching, looking straight at you — ${N} still does.`;
+    }
+    if (diffHatch === 30 && state.annivMentioned['hatch'] !== today) {
+      state.annivMentioned['hatch'] = today;
+      return `A month with you now. Tiny at hatching, looking straight at you — ${N} still does.`;
+    }
+    if (diffNursed === 7 && state.annivMentioned['nursed'] !== today) {
+      state.annivMentioned['nursed'] = today;
+      return `This time last week, you stayed through the shivers together until they eased. ${N} still leans in a touch closer for it.`;
+    }
+    const streak = state.breakfastStreak || 0;
+    const lastB = state.lastBreakfastDay;
+    const recentB = lastB === today || (lastB && daysBetween(lastB, today) === 1);
+    if (recentB && streak >= 3 && state.annivMentioned['streak'] !== today) {
+      state.annivMentioned['streak'] = today;
+      return `Shared breakfast, ${streakWord(streak)} mornings running now, as if mornings together have become your small ritual.`;
+    }
+    if (diffGrew === 7 && state.annivMentioned['grew'] !== today) {
+      state.annivMentioned['grew'] = today;
+      return `A week since ${N} grew into a new season of smallness — a little braver since.`;
+    }
+    if (diffGift === 1 && state.lastGiftName && state.annivMentioned['gift'] !== today) {
+      state.annivMentioned['gift'] = today;
+      return `${N} is still pleased about the ${state.lastGiftName} from out in the world.`;
+    }
+    return null;
   }
 
   return {
@@ -917,5 +1155,11 @@ export function createEngine(initial = {}) {
     excursion,
     canExcursion,
     serialize: () => serialize(state),
+    getSparkWord,
+    canSunFleck,
+    playSunFleck,
+    checkInitiative,
+    grantGift,
+    anniversaryLine,
   };
 }

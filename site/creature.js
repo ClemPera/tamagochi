@@ -7,22 +7,43 @@
  * tilt into turns, hop anticipation, goal-legible easing. Gaze loop: eyes
  * track lookAt within ~1s, petting reads as gaze resting while slow.
  * DPR-aware, cheap fills only (no shadowBlur), reduced-motion aware.
+ *
+ * v3 staging hooks (additive, all v1/v2 hooks kept):
+ * - act 'pounce' (or pounce() helper): anticipation crouch ~0.14s, then hop.
+ *   App lane drives wander to the fleck; creature only crouches + hops.
+ * - act 'dream': sleep-settled + slow breath + zzz; pair with DOM
+ *   .nest-dream on the nest spot + floating em for the dream beat.
+ * - act 'hum': gentle idle variant, soft smile; pair with a note emote
+ *   + chime('hum'). act 'present': trot-in gift hop; pair with .emote.gift.
+ * - mood 'tender': soft warm read; longer pauses live in the app lane —
+ *   multiply wander.pause by pauseFactor() (tender 1.6x, unwell/sick 1.8x,
+ *   critical 2.4x, sleepy 1.5x, spent/exhausted 1.8x).
+ * - moods 'unwell'/'critical' (+ legacy 'sick'): x-jitter shiver, flat
+ *   mouth (never gasp), dull coat, droop. 'critical' droops hardest
+ *   (R*0.2) + stays readable vs sleeping (sleep = shut eyes + zzz +
+ *   no shiver; critical = half-mast droopy eyes + shiver + flat mouth).
+ * - spark tired ('sleepy'/'spent'/'exhausted'): curls smaller + softer
+ *   glow, warm coat, soft mouth, NO shiver — tired must not read as ill.
+ * - nest-clamp (staying near nest when critical) is app-lane positioning;
+ *   this view only renders the weak droop so the clamp reads clearly.
  */
 
 const MOODS = new Set([
   'content', 'happy', 'hungry', 'sleepy', 'lonely', 'scared',
   'sick', 'sleep', 'gone', 'tender', 'unwell', 'critical',
+  'spent', 'exhausted',
 ]);
 const ACTS = new Set([
   'idle', 'wander', 'seek', 'eat', 'play', 'sleep',
   'breathe', 'greet', 'grieve', 'shiver', 'excursion',
+  'pounce', 'dream', 'hum', 'present',
 ]);
 // legacy v1 act names still accepted, mapped forward
 const ACT_ALIAS = { soothe: 'breathe', soothed: 'breathe', eating: 'eat', playing: 'play', petted: 'idle', sleeping: 'sleep', waking: 'greet' };
-const HAPPY_ACTS = new Set(['play', 'breathe', 'greet', 'excursion']);
+const HAPPY_ACTS = new Set(['play', 'breathe', 'greet', 'excursion', 'pounce', 'hum', 'present']);
 // Weak/tired/lonely faces must never be overridden into a happy smile:
 // petGlow and giggle peaks stay gated behind this set.
-const GLOW_BLOCK = new Set(['sick', 'unwell', 'critical', 'sleepy', 'exhausted', 'lonely', 'scared']);
+const GLOW_BLOCK = new Set(['sick', 'unwell', 'critical', 'sleepy', 'spent', 'exhausted', 'lonely', 'scared']);
 
 export class CreatureView {
   constructor(canvas) {
@@ -65,6 +86,8 @@ export class CreatureView {
     this.touchT = 0;
     // one-shot hop for greet / eat / happy moments
     this.hop = 0;
+    // pounce anticipation: crouch first, hop fires when this hits 0
+    this._pounceT = 0;
     this.shiverPhase = Math.random() * 10;
     // garnish particles: play-miss ripples + snack crumb-puffs (cheap canvas dots)
     this._parts = [];
@@ -96,7 +119,34 @@ export class CreatureView {
     if (ACTS.has(a)) {
       if (a === 'greet' && this.act !== 'greet') this.hop = 1;
       if (a === 'eat' && this.act !== 'eat') this.snackPuff();
+      if (a === 'pounce') this.pounce();
+      if (a === 'present' && this.act !== 'present' && !this.reduced) this.hop = Math.max(this.hop, 0.7);
+      if (a === 'dream') this.hop = 0;
       this.act = a;
+    }
+  }
+  // pounce() — sun-fleck pounce: anticipation crouch now, hop lands ~0.14s
+  // later via update(). Reduced-motion: crouch only, no hop.
+  pounce() {
+    if (!this.reduced) {
+      this.crouch = Math.max(this.crouch, 1);
+      this._pounceT = 0.14;
+    } else {
+      this.crouch = Math.max(this.crouch, 0.5);
+    }
+  }
+  // pauseFactor() — app-lane wander pacing per mood. Tender pauses longer,
+  // weak/tired pause longest; multiply wander.pause by this after pickTarget.
+  pauseFactor() {
+    switch (this.mood) {
+      case 'critical': return 2.4;
+      case 'unwell':
+      case 'sick': return 1.8;
+      case 'spent':
+      case 'exhausted': return 1.8;
+      case 'tender': return 1.6;
+      case 'sleepy': return 1.5;
+      default: return 1;
     }
   }
   setAccent(h) {
@@ -210,12 +260,18 @@ export class CreatureView {
     const accel = (this.speed - this.lastSpeed) / Math.max(dt, 1e-3);
     this.lastSpeed = this.speed;
     if (accel > 2600 && this.crouch <= 0.05 && !this.reduced) this.crouch = 1;
+    // pounce anticipation: crouch held, hop fires when timer lapses
+    if (this._pounceT > 0) {
+      this._pounceT -= dt;
+      this.crouch = Math.max(this.crouch, this.reduced ? 0.3 : 0.8);
+      if (this._pounceT <= 0 && !this.reduced) this.hop = Math.max(this.hop, 1);
+    }
     this.crouch = Math.max(0, this.crouch - dt * 5.5);
     this.hop = Math.max(0, this.hop - dt * 2.2);
     // wander charm: hop on arrival — was gliding, now settled
     const moving = this.speed > 140;
     if (this._wasMoving && !moving && this.speed < 70 && !this.reduced) {
-      if (this.act !== 'sleep' && this.mood !== 'sleep') {
+      if (this.act !== 'sleep' && this.mood !== 'sleep' && this.act !== 'dream') {
         if (this.hop <= 0.05) this.hop = Math.max(this.hop, 0.45);
         this.crouch = Math.max(this.crouch, 0.4);
       }
@@ -225,9 +281,9 @@ export class CreatureView {
     const tiltTarget = Math.max(-0.3, Math.min(0.3, this.vx / 950));
     this.tilt += (tiltTarget - this.tilt) * (1 - Math.exp(-dt * 6));
 
-    this.breathRate = (this.mood === 'sleep' || this.act === 'sleep') ? 1.1
+    this.breathRate = (this.mood === 'sleep' || this.act === 'sleep' || this.act === 'dream') ? 1.1
       : this.act === 'breathe' ? 0.9
-      : this._isWeak() ? 1.3 : 2.1;
+      : this._isWeak() ? 1.3 : this._isTired() ? 1.5 : 2.1;
     this.breath += dt * this.breathRate;
     this.shiverPhase += dt * (this._isShivery() ? 26 : 4);
 
@@ -257,7 +313,7 @@ export class CreatureView {
       this.blink = 0.13;
       // blink rhythm: 2-5s cadence, slower when drowsy or weak, quicker when playful
       this.blinkIn = 2 + Math.random() * 3; // 2-5s cadence
-      if (this.mood === 'sleepy' || this.mood === 'sleep' || this._isWeak()) this.blinkIn += 1.5;
+      if (this.mood === 'sleepy' || this.mood === 'sleep' || this._isWeak() || this._isTired()) this.blinkIn += 1.5;
       if (this.act === 'play' || this.act === 'greet') this.blinkIn = Math.max(1.4, this.blinkIn - 1);
       this._doubleBlink = !this.reduced && Math.random() < 0.22;
     }
@@ -302,6 +358,10 @@ export class CreatureView {
   _isWeak() {
     return this.mood === 'sick' || this.mood === 'unwell' || this.mood === 'critical';
   }
+  // tired (spark sleepy/spent) is NOT weak: no shiver, no slow-path, warm read
+  _isTired() {
+    return this.mood === 'sleepy' || this.mood === 'spent' || this.mood === 'exhausted';
+  }
   _slowFactor() { return this._isWeak() ? 1.8 : 1; } // weak moves slower, never frozen
 
   _resize() {
@@ -343,9 +403,14 @@ export class CreatureView {
 
     // hop lift (greet / eat joy / head pat) with anticipation already in crouch
     const hopLift = this.hop > 0 ? Math.sin(this.hop * Math.PI) * R * 0.35 * calm : 0;
-    // droop: exhausted demonstration — body sits lower, never collapses
-    const droopY = (this.mood === 'sleepy' || this.mood === 'sleep') ? R * 0.1
-      : weak ? R * 0.14 : 0;
+    // droop ladder, readable at a glance: critical sinks hardest, ill sinks,
+    // sleeping settles, tired only softens. Sleep = shut eyes + zzz, no
+    // shiver; critical = half-mast eyes + shiver + flat mouth, never confused.
+    const sleeping = this.mood === 'sleep' || this.act === 'sleep' || this.act === 'dream';
+    const droopY = this.mood === 'critical' ? R * 0.2
+      : weak ? R * 0.14
+      : sleeping ? R * 0.12
+      : this._isTired() ? R * 0.08 : 0;
 
     let cx = this.cx, cy = this.cy + bob - hopLift + droopY;
 
@@ -369,7 +434,10 @@ export class CreatureView {
     sx *= br; sy *= (2 - br) / 1 + (br - 1) * 0.4; // keep volume-ish, gentle
     // weak droop: slightly wider + flatter, still upright
     if (weak) { sx *= 1.04; sy *= 0.96; }
-    if (this.mood === 'sleep' || this.act === 'sleep') { sx *= 1.06; sy *= 0.93; }
+    if (this.mood === 'critical') { sx *= 1.03; sy *= 0.95; } // heaviest, still upright
+    if (sleeping) { sx *= 1.06; sy *= 0.93; }
+    // spark tired curl: smaller + softer, warm — never the ill droop/shiver
+    if (this._isTired()) { sx *= 0.94; sy *= 0.9; }
 
     ctx.save();
     ctx.translate(cx + shx, cy);
@@ -409,7 +477,7 @@ export class CreatureView {
       ctx.stroke();
     }
 
-    if ((this.mood === 'sleep' || this.act === 'sleep') && calm) this._drawZzz(ctx, cx + shx, cy, R);
+    if ((this.mood === 'sleep' || this.act === 'sleep' || this.act === 'dream') && calm) this._drawZzz(ctx, cx + shx, cy, R);
     if (this._parts.length) this._drawParts(ctx);
     if (this.act === 'excursion' && calm) this._drawMotionPuffs(ctx, cx + shx, cy, R);
   }
@@ -419,6 +487,7 @@ export class CreatureView {
     if (this.mood === 'unwell' || this.mood === 'sick') return '#e9e6d2';
     if (this.mood === 'tender') return '#fff0df';
     if (this.mood === 'sleep' || this.mood === 'sleepy') return '#f7ecd9';
+    if (this.mood === 'spent' || this.mood === 'exhausted') return '#f3e8d5'; // tired-warm, not ill-grey
     if (this.mood === 'scared') return '#fdf3e3';
     if (this.mood === 'lonely') return '#f9ecdf';
     return '#fff5e2';
@@ -528,10 +597,11 @@ export class CreatureView {
     switch (this.mood) {
       case 'sleep': return 0.05;
       case 'sleepy': return 0.38;
+      case 'spent': return 0.45; // drowsy-soft, even lids — not the ill droop
       case 'exhausted': return 0.42;
       case 'sick': return 0.5;
       case 'unwell': return 0.45;
-      case 'critical': return 0.34; // droop, never shut fully while awake
+      case 'critical': return 0.3; // heavy half-mast, never shut fully while awake
       case 'tender': return 0.85; // soft, warm
       case 'lonely': return 0.72;
       case 'scared': return 1.12;
@@ -631,16 +701,18 @@ export class CreatureView {
     const mouthFor = () => {
       if (this.touch === 'belly' && this.touchT > 0.9) return 'grumpy'; // grumpy first…
       if (happy || this.mood === 'happy' || this.mood === 'content' || this.mood === 'tender') return 'smile';
+      if (this.act === 'hum') return 'smile'; // hum is a soft happy sound
       switch (this.mood) {
         case 'hungry': return 'open';
         case 'sleep':
-        case 'sleepy': return 'soft';
+        case 'sleepy':
+        case 'spent':
+        case 'exhausted': return 'soft'; // tired-soft, never the ill flat line
         case 'lonely': return 'wobble';
         case 'scared': return 'o';
         case 'sick':
         case 'unwell':
-        case 'critical':
-        case 'exhausted': return 'flat'; // tired line, never gasp
+        case 'critical': return 'flat'; // tired line, never gasp
         default: return 'smile';
       }
     };

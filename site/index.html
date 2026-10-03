@@ -50,7 +50,7 @@
       <h1 id="petTitle">A small friend</h1>
       <span id="stageLine" class="stage-pill"></span>
     </div>
-    <p id="statusLine" class="status-line" aria-live="polite"></p>
+    <p id="statusLine" class="status-line" aria-live="polite" tabindex="0" role="button" aria-label="How your friend is feeling. Activate to learn about being away a while."></p>
     <p id="rhythmLine" class="rhythm-line" aria-live="polite"></p>
 
     <div id="stage">
@@ -60,6 +60,8 @@
       <canvas id="scene" role="img" tabindex="0" aria-label="A small creature moving around its home"></canvas>
       <div id="snackDrag" role="button" tabindex="0" aria-label="A little snack. Drag it to your friend, or press Enter to share.">🍪</div>
       <div id="effects" aria-hidden="true"></div>
+      <button id="sunFleckBtn" type="button" hidden aria-label="Chase sun-flecks at the warm spot. Hold Hide-and-find, or tap here when the light is soft.">sun-flecks</button>
+      <button id="sunGiftBtn" type="button" hidden aria-label="A tiny gift waiting at the warm spot. Activate to keep it.">a tiny gift</button>
       <div id="playGuide" class="guide-overlay" hidden><span id="playGuideText"></span></div>
       <div id="breathe" hidden>
         <div id="breatheRing"></div>

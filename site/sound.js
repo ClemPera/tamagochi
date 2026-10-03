@@ -29,6 +29,7 @@ const SEQS = {
   sad:   [[N.E4, 0, 0.2], [N.D4, 0.18, 0.2], [N.C4, 0.36, 0.32]],
   tap:   [[N.G4, 0, 0.09]],
   gift:  [[N.G4, 0, 0.12], [N.A4, 0.1, 0.12], [N.C5, 0.2, 0.24]],
+  hum:   [[N.E4, 0, 0.3], [N.G4, 0.22, 0.4]], // soft bedside hum, never startling
 };
 
 export function chime(kind) {
@@ -40,9 +41,9 @@ export function chime(kind) {
     for (const [freq, off, dur] of seq) {
       const o = c.createOscillator();
       const g = c.createGain();
-      o.type = kind === 'sleep' || kind === 'sick' || kind === 'sad' ? 'sine' : 'triangle';
+      o.type = kind === 'sleep' || kind === 'sick' || kind === 'sad' || kind === 'hum' ? 'sine' : 'triangle';
       o.frequency.value = freq;
-      const peak = kind === 'sleep' || kind === 'sick' ? 0.08 : 0.12;
+      const peak = kind === 'hum' ? 0.05 : kind === 'sleep' || kind === 'sick' ? 0.08 : 0.12;
       g.gain.setValueAtTime(0.0001, t0 + off);
       g.gain.exponentialRampToValueAtTime(peak, t0 + off + 0.02);
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + off + dur);
