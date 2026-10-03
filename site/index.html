@@ -60,7 +60,7 @@
       <canvas id="scene" role="img" tabindex="0" aria-label="A small creature moving around its home"></canvas>
       <div id="snackDrag" role="button" tabindex="0" aria-label="A little snack. Drag it to your friend, or press Enter to share.">🍪</div>
       <div id="effects" aria-hidden="true"></div>
-      <div id="playGuide" class="guide-overlay" hidden><span id="playGuideText"></span><button id="playGiveUp" type="button">Give up</button></div>
+      <div id="playGuide" class="guide-overlay" hidden><span id="playGuideText"></span></div>
       <div id="breathe" hidden>
         <div id="breatheRing"></div>
         <p id="breatheText" aria-live="polite">breathe in…</p>
@@ -78,6 +78,7 @@
     <div id="actions" class="controls">
       <button class="btn act" id="btnFeed" type="button"><span class="actLabel">Share a snack</span><small>drag the treat over, tap, or Enter</small></button>
       <button class="btn act" id="btnPlay" type="button"><span class="actLabel">Hide-and-find</span><small>at the warm spot</small></button>
+      <button class="btn act" id="playGiveUp" type="button" hidden><span class="actLabel">Give up</span><small>pause the game, no fuss</small></button>
       <button class="btn act" id="btnSit" type="button"><span class="actLabel">Sit close</span><small>always a good moment</small></button>
       <button class="btn act" id="btnBreathe" type="button" aria-describedby="breatheHint">
         <span id="breatheFill" class="actFill"></span>

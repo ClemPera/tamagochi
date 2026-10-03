@@ -66,6 +66,8 @@ export class CreatureView {
     // one-shot hop for greet / eat / happy moments
     this.hop = 0;
     this.shiverPhase = Math.random() * 10;
+    // garnish particles: play-miss ripples + snack crumb-puffs (cheap canvas dots)
+    this._parts = [];
 
     this.reduced = false;
     try {
@@ -93,6 +95,7 @@ export class CreatureView {
     if (ACT_ALIAS[a]) a = ACT_ALIAS[a];
     if (ACTS.has(a)) {
       if (a === 'greet' && this.act !== 'greet') this.hop = 1;
+      if (a === 'eat' && this.act !== 'eat') this.snackPuff();
       this.act = a;
     }
   }
@@ -113,6 +116,40 @@ export class CreatureView {
     this._gazeAge = 0;
     // remember cursor for occasional glances between pointer moves
     try { this._cursor = { x: this.gaze.x, y: this.gaze.y }; this._cursorAt = this.t; } catch {}
+  }
+
+  // Garnish hooks the app lane can call any time (normalized 0..1 or css px):
+  // missAt(x, y) pops a ring ripple where a play tap landed wide,
+  // snackPuff() puffs biscuit crumbs where the snack rests (bottom-right of
+  // the dish, matching the #snackDrag home pin in style.css). snackPuff also
+  // fires on its own whenever the act flips to 'eat', so feeding already puffs.
+  missAt(x, y) {
+    const W = this.w || 300, H = this.h || 225;
+    let px = x, py = y;
+    if (Math.abs(x) <= 1.5 && Math.abs(y) <= 1.5 && W > 60) { px = x * W; py = y * H; }
+    if (!Number.isFinite(px) || !Number.isFinite(py)) return;
+    if (this.reduced) return;
+    this._parts.push({ kind: 'ring', x: px, y: py, age: 0, life: 0.6 });
+    if (this._parts.length > 40) this._parts.splice(0, this._parts.length - 40);
+  }
+
+  snackPuff() {
+    if (this.reduced) return;
+    const W = this.w || 300, H = this.h || 225;
+    const bx = W * 0.78, by = H * 0.8;
+    const cols = ['#fff3d9', '#f0d49c', '#d8a86a', '#c69a62'];
+    for (let i = 0; i < 7; i++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
+      const sp = 40 + Math.random() * 90;
+      this._parts.push({
+        kind: 'dot',
+        x: bx + (Math.random() - 0.5) * 10, y: by + (Math.random() - 0.5) * 6,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        age: 0, life: 0.5 + Math.random() * 0.3,
+        size: 2 + Math.random() * 2.6, color: cols[i % cols.length],
+      });
+    }
+    if (this._parts.length > 40) this._parts.splice(0, this._parts.length - 40);
   }
 
   // react('head'|'belly'|'back') — distinct touch reaction, returns a word.
@@ -197,6 +234,15 @@ export class CreatureView {
     if (this.touchT > 0) {
       this.touchT -= dt;
       if (this.touchT <= 0) { this.touch = null; this.touchT = 0; }
+    }
+
+    // garnish particles drift + fade
+    if (this._parts.length) {
+      for (const p of this._parts) {
+        p.age += dt;
+        if (p.kind === 'dot') { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 160 * dt; }
+      }
+      this._parts = this._parts.filter((p) => p.age < p.life);
     }
 
     this.blinkIn -= dt;
@@ -364,6 +410,7 @@ export class CreatureView {
     }
 
     if ((this.mood === 'sleep' || this.act === 'sleep') && calm) this._drawZzz(ctx, cx + shx, cy, R);
+    if (this._parts.length) this._drawParts(ctx);
     if (this.act === 'excursion' && calm) this._drawMotionPuffs(ctx, cx + shx, cy, R);
   }
 
@@ -651,6 +698,27 @@ export class CreatureView {
     ctx.fillStyle = 'rgba(109,99,87,0.45)';
     ctx.font = `${Math.round(R * 0.42)}px ui-rounded, system-ui, sans-serif`;
     ctx.fillText('z', cx + R * 1.3, cy - R * 1.05 - a * R * 0.35);
+  }
+
+  _drawParts(ctx) {
+    for (const p of this._parts) {
+      const k = Math.min(1, p.age / p.life);
+      if (p.kind === 'ring') {
+        const r = 6 + k * 26;
+        ctx.strokeStyle = 'rgba(201,118,95,' + (0.8 * (1 - k)).toFixed(3) + ')';
+        ctx.lineWidth = Math.max(1, 3 - k * 2);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        ctx.globalAlpha = 1 - k;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * (1 - k * 0.5), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
   }
 
   _drawMotionPuffs(ctx, cx, cy, R) {

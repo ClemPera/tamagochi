@@ -412,7 +412,7 @@ function layoutSpots() {
 function placeSnackHome() {
   try {
     snackDrag.style.left = '78%';
-    snackDrag.style.top = '60%';
+    snackDrag.style.top = '80%';
     snackDrag.style.fontSize = '26px';
   } catch {}
 }
@@ -636,6 +636,7 @@ function renderButtons() {
     btnSit.disabled = busy || !aliveNow();
     btnBreathe.disabled = busy || !aliveNow();
     btnMedicine.disabled = busy;
+    try { if (playGiveUp && !playGiveUp.hidden) playGiveUp.disabled = false; } catch {}
   } catch {}
   renderHealthNote();
   suggestRitual();
@@ -690,10 +691,10 @@ function renderHealthNote() {
 function renderAll() { renderStatus(); renderShelves(); renderButtons(); updateTitle(); }
 
 /* ---------- completion-first ritual runner ---------- */
-function emote(txt, nx, ny) {
+function emote(txt, nx, ny, cls) {
   try {
     const s = document.createElement('span');
-    s.className = 'emote';
+    s.className = 'emote' + (cls ? ' ' + cls : '');
     s.textContent = txt;
     s.style.left = ((nx ?? wander.x) * 100) + '%';
     s.style.top = ((ny ?? wander.y) * 100) + '%';
@@ -742,11 +743,14 @@ async function feedRitual() {
 let playRound = null;
 let playCancel = false;
 async function playRitual() {
-  if (busyNote() || !aliveNow() || needWake()) return;
+  if (busyNote()) return;
+  if (!aliveNow()) { say(nameNow() + ' is resting elsewhere just now. Nothing is spoiled.'); return; }
+  if (needWake()) return;
   busy = true; renderButtons();
   playCancel = false;
   const n = nameNow();
   showPlayGuide('Tap your friend when you spot them.');
+  if (playGuide && playGuide.hidden) { safeAct('idle'); busy = false; persist(); renderAll(); say('One moment… still here with you.'); return; }
   safeAct('play'); safeMood('happy');
   goSpot('sun');
   try { spotSun.classList.add('spot-glow'); } catch {}
@@ -769,6 +773,13 @@ async function playRitual() {
   hidePlayGuide();
   try { spotSun.classList.remove('spot-glow'); } catch {}
   await wait(400);
+  if (playCancel || found < rounds) {
+    safeAct('idle');
+    busy = false;
+    persist(); renderAll();
+    say(n + ' ambles back, happy just to be near. Another game anytime.');
+    return;
+  }
   const res = swallow(() => doPlay(), null);
   safeAct('idle');
   busy = false;
@@ -1034,7 +1045,7 @@ swallow(() => {
       if (busy) { say('One moment… still here with you.'); return; }
       if (!tapResolvers.length && playRound === null) sitRitual();
     } else if (tapResolvers.length) {
-      emote('·', p.x, p.y);
+      emote('·', p.x, p.y, 'miss miss-dot');
       say('almost — try again', 1200);
     }
   });
@@ -1107,9 +1118,10 @@ function showPlayGuide(t) {
   try {
     if (playGuideText) playGuideText.textContent = t;
     if (playGuide) playGuide.hidden = false;
+    if (playGiveUp) playGiveUp.hidden = false;
   } catch {}
 }
-function hidePlayGuide() { try { if (playGuide) playGuide.hidden = true; } catch {} }
+function hidePlayGuide() { try { if (playGuide) playGuide.hidden = true; if (playGiveUp) playGiveUp.hidden = true; } catch {} }
 function demoBoost() {
   try {
     const hatched = ui.hatchAt || Date.now();

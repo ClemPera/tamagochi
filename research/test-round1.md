@@ -77,3 +77,26 @@ Plus: wander is glide-only (needs hop/squash/blink), breathe overlay could be wa
 - Headline spec for round 2: REMEMBERED-OWNER GREETINGS — persist lastNursedDay,
   lastGiftDay, breakfastStreak; getGreeting references shared history before
   need-lines (~30 lines, no new UI/meters).
+
+## Regression round (fix-18 newcomer/keys) — 12/12 FIXED + 1 wart
+- All keyboard/onboarding/newborn/toast/aria/feed-copy items pass live.
+- Wart for round 3: cancelled Play (Escape/Give-up) still pays the "lights up"
+  success toast ~1s later — cancel must not pay.
+
+## Regression feel (des-7) — 10/12 pass, 1 partial, 1 fail
+- Pass: toast dock, sit nuzzle, snack art, no pink box, habitat, echo,
+  tuck-quiet, hierarchy, header pill, egg, night, wander charm, breathe warmth.
+- FAIL: Give-up button dead to pointer (inside pointer-events:none overlay).
+- Partial: miss dot tiny; no crumb-puff garnish; snack home overlaps creature.
+- Confirmed wart: cancelled/give-up Play still pays full reward.
+
+## Regression systems (fix-19) — 10/10 PASS
+- Thriving never tender, excursion reachable, 3x/day sustains (minBelly 69),
+  growth stalls when sick/bottomed, chill demo end-to-end, medicine names
+  need, trajectory/echo live, memory voice once + downgrades, welcome-back
+  clean, ladder + newborn guard + rebirth intact.
+
+## Round 3 list (small)
+1. Give-up button dead to pointer (overlay pointer-events:none).
+2. Cancelled Give-up/Escape Play must not pay the success reward.
+3. Polish: bigger miss ripple, crumb-puff garnish, snack home off the face.

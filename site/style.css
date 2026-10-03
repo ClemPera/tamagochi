@@ -247,19 +247,27 @@ body[data-phase="night"] .spot-nest, body.night .spot-nest {
   transition: left 0.45s ease, top 0.45s ease, transform 0.45s ease;
   transform: translate(-50%, -50%) scale(0.92);
 }
-/* crumb-puff particles spawned on snap-back */
+/* crumb-puff particles spawned on snap-back (round 3: warmer + wider fan) */
 #effects .crumb, .crumb {
   position: absolute;
-  width: 7px; height: 7px;
+  width: 8px; height: 8px;
   border-radius: 50%;
-  background: radial-gradient(circle, #f0d49c, #c69a62);
-  border: 1px solid rgba(140, 95, 50, 0.4);
+  background: radial-gradient(circle at 35% 30%, #fff3d9, #f0d49c 55%, #c69a62);
+  border: 1px solid rgba(140, 95, 50, 0.45);
+  box-shadow: 0 1px 3px rgba(60, 40, 20, 0.25);
   pointer-events: none;
-  animation: crumbPuff 0.6s ease-out forwards;
+  z-index: 6;
+  animation: crumbPuff 0.65s ease-out forwards;
 }
+/* spread defaults: a burst of 5-7 crumbs fans out even before the spawner
+   sets per-crumb --dx/--dy inline */
+#effects .crumb:nth-child(3n), .crumb:nth-child(3n) { --dx: -16px; --dy: -22px; width: 6px; height: 6px; }
+#effects .crumb:nth-child(3n+1), .crumb:nth-child(3n+1) { --dx: 16px; --dy: -18px; }
+#effects .crumb:nth-child(3n+2), .crumb:nth-child(3n+2) { --dx: 2px; --dy: -28px; width: 7px; height: 7px; }
 @keyframes crumbPuff {
   from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  to { opacity: 0; transform: translate(var(--dx, 10px), var(--dy, -16px)) scale(0.35); }
+  40% { opacity: 1; }
+  to { opacity: 0; transform: translate(var(--dx, 10px), var(--dy, -16px)) scale(0.3); }
 }
 /* round glow override — beats the bridge .spot-glow square for snack/nest */
 #stage .spot-snack.spot-glow, .stage .spot-snack.spot-glow {
@@ -742,8 +750,8 @@ body[data-phase="night"] .guide-overlay, body.night .guide-overlay {
   animation: suggestedNudge 2.6s ease-in-out infinite;
 }
 @keyframes suggestedNudge {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-2px); }
+  0%, 100% { box-shadow: 0 6px 18px -8px rgba(201, 118, 95, 0.7); }
+  50% { box-shadow: 0 6px 26px -4px rgba(201, 118, 95, 0.9); }
 }
 /* softened sleeping panel — Wake stays prominent */
 .panel-quiet {
@@ -758,6 +766,39 @@ body[data-phase="night"] .guide-overlay, body.night .guide-overlay {
   color: var(--accent-ink);
   border-color: transparent;
   box-shadow: 0 6px 18px -8px rgba(201, 118, 95, 0.7);
+}
+
+/* ---------- round 3 garnish: miss ripple + snack home ---------- */
+/* Play miss: app.js has no dedicated miss class — a miss is emote('·', x, y),
+   a plain span.emote at the tap point. Ready for the app lane: emit
+   <span class="miss-dot"> at the tap point, or add 'miss' to the emote's
+   class list. Big ring ripple, easy to see. */
+.miss-dot, .emote.miss, .emote--miss {
+  position: absolute;
+  width: 48px; height: 48px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 3px solid var(--accent-deep);
+  background: radial-gradient(circle, rgba(229, 154, 139, 0.3), rgba(229, 154, 139, 0) 68%);
+  box-shadow: 0 0 0 4px rgba(229, 154, 139, 0.22), 0 0 18px 5px rgba(229, 154, 139, 0.35);
+  pointer-events: none;
+  z-index: 6;
+  animation: missRipple 0.7s ease-out forwards;
+}
+.emote.miss, .emote--miss { font-size: 0; line-height: 0; color: transparent; }
+@keyframes missRipple {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(0.35); }
+  55% { opacity: 1; }
+  to { opacity: 0; transform: translate(-50%, -50%) scale(1.55); }
+}
+/* Snack home: rest clearly off the face, bottom of the dish, off the center
+   wander path. app.js placeSnackHome() sets inline 78%/60% (face height);
+   this pins the idle visual to 78%/80% without touching app.js. Excluded
+   while .dragging so the pointer still owns the snack mid-drag. If the app
+   lane adopts 78%/80% inline, this pin can go away. */
+#snackDrag:not(.dragging) {
+  left: 78% !important;
+  top: 80% !important;
 }
 
 /* ---------- larger screens ---------- */
@@ -782,7 +823,7 @@ body[data-phase="night"] .guide-overlay, body.night .guide-overlay {
   .act:hover, .act:active, .btn:hover, .btn:active { transform: none; }
   .spot-snack.ready, .drag-snack.ready, .coach-pulse,
   #stage.is-shivery .spot, .stage.is-shivery .spot,
-  .suggested, #snackDrag.returning, .crumb,
+  .suggested, #snackDrag.returning, .crumb, .miss-dot, .emote.miss,
   .guide-overlay, .egg-hold.egg-3::after { animation: none; }
   #snackDrag, #snackDrag.returning { transition: none; }
   html { scroll-behavior: auto; }
