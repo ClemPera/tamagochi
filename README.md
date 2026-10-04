@@ -6,7 +6,7 @@ A standalone Tamagotchi-like virtual friend. Plain HTML, CSS, and vanilla JavaSc
 
 ## Try it
 
-**Online:** host the `docs/` folder with any static host (e.g. GitHub Pages: Settings → Pages → Deploy from branch → `main` + `/docs`).
+**Online:** https://clempera.github.io/tamagochi/
 
 **Locally:**
 
