@@ -1355,7 +1355,7 @@ function takeAmbientGift() {
 }
 function ambientBeat() {
   try {
-    if (main.hidden || document.hidden || !aliveNow() || busy || stageNow() === 'egg') return;
+    if (main.hidden || document.hidden || !aliveNow() || busy || stageNow() === 'egg') return false;
     if (sleepNow()) {
       emote('💭', wander.x, wander.y - 0.08);
       try { spotNest.classList.add('spot-glow'); } catch {}
@@ -1364,18 +1364,19 @@ function ambientBeat() {
         ui.ambientDreamDay = todayStr(); storeUi();
         ambientDiaryPush('Dreamed softly in the nest while you were near.');
       }
-      return;
+      return true;
     }
-    if (!wellNow()) return;
-    if (ambientGiftPending || pendingReturnGift) return;
-    if (trustFondPlus() && ambientGiftWeekOk() && Math.random() < 0.3) { leaveAmbientGift(); return; }
+    if (!wellNow()) return false;
+    if (ambientGiftPending || pendingReturnGift) return false;
+    if (trustFondPlus() && ambientGiftWeekOk() && Math.random() < 0.3) { leaveAmbientGift(); return true; }
     try {
       ritualTarget = { x: clamp01(gaze.x + (Math.random() - 0.5) * 0.1), y: clamp01(gaze.y + (Math.random() - 0.5) * 0.1) };
       wander.pause = 0;
     } catch {}
     emote('♪');
     safeReact('head');
-  } catch {}
+    return true;
+  } catch { return false; }
 }
 let lastInitiativeCheck = 0;
 function initiativeBeat() {
@@ -2176,7 +2177,7 @@ function frame(now) {
       try {
         if (document.hidden) { jitterAmbient(); }
         else {
-          if (Date.now() >= ambientNextAt) { jitterAmbient(); ambientBeat(); }
+          if (Date.now() >= ambientNextAt) { if (ambientBeat()) jitterAmbient(); else ambientNextAt = Date.now() + 60000; }
           initiativeBeat();
         }
       } catch {}
