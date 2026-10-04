@@ -279,6 +279,12 @@ function doAnniversary() {
   if (typeof s === 'string' && s.trim()) return s.trim();
   return null;
 }
+function doConsumePendingReturn() {
+  const r = swallow(() => eng('consumePendingReturn'), null);
+  if (!r || typeof r !== 'object') return null;
+  if (r.kind === 'want' || r.kind === 'gift') return r;
+  return null;
+}
 
 /* ---------- tiny ui store ---------- */
 const UI_KEY = 'v2-ui-v1';
@@ -835,9 +841,25 @@ function suggestRitual() {
     if (pick && !pick.hidden && !pick.disabled) pick.classList.add('suggested');
   } catch {}
 }
+function askOpenFresh() {
+  try {
+    const t = Number(ui.askOpenAt) || 0;
+    if (!t) return false;
+    if (Date.now() - t > 60 * 1000) { ui.askOpenAt = 0; try { storeUi(); } catch {} return false; }
+    return true;
+  } catch { return false; }
+}
 function renderHealthNote() {
   const ws = warnStage();
   try {
+    if (askOpenFresh()) {
+      if (!aliveNow()) { ui.askOpenAt = 0; try { storeUi(); } catch {} }
+      else if (ws === 'well' && !sickNow()) {
+        healthNote.hidden = false;
+        if (healthText.textContent !== ASK_COPY) healthText.textContent = ASK_COPY;
+        return;
+      } else { ui.askOpenAt = 0; try { storeUi(); } catch {} }
+    }
     if (!aliveNow() || ws === 'well') { healthNote.hidden = true; return; }
     healthNote.hidden = false;
     const n = nameNow();
@@ -910,6 +932,10 @@ async function playRitual() {
   if (busyNote()) return;
   if (!aliveNow()) { say(nameNow() + ' is resting elsewhere just now. Nothing is spoiled.'); return; }
   if (needWake()) return;
+  if (sickNow()) {
+    say(nameNow() + ' wants nearness right now, not chasing — sitting close is plenty.');
+    return;
+  }
   if (sparkSpent()) {
     const n0 = nameNow();
     const w0 = sparkWord();
@@ -1259,6 +1285,8 @@ function ambientDiaryPush(line) {
   return true;
 }
 let ambientGiftPending = null;
+let pendingReturnGift = null;
+let pendingReturnGiftStory = '';
 const AMBIENT_GIFTS = ['sunlit mote', 'warm hush', 'soft glint'];
 function ambientGiftWeekOk() {
   try {
@@ -1269,7 +1297,7 @@ function ambientGiftWeekOk() {
 function updateSunGiftAffordance() {
   try {
     if (!sunGiftBtn) return;
-    if (!ambientGiftPending || main.hidden || !aliveNow() || busy) { sunGiftBtn.hidden = true; return; }
+    if ((!ambientGiftPending && !pendingReturnGift) || main.hidden || !aliveNow() || busy) { sunGiftBtn.hidden = true; return; }
     sunGiftBtn.hidden = false;
     try {
       const p = spotXY('sun');
@@ -1283,7 +1311,7 @@ function updateSunGiftAffordance() {
 }
 function leaveAmbientGift() {
   if (!ambientGiftWeekOk()) return;
-  if (ambientGiftPending) return;
+  if (ambientGiftPending || pendingReturnGift) return;
   try {
     const pick = AMBIENT_GIFTS[Math.floor(Math.random() * AMBIENT_GIFTS.length)];
     ambientGiftPending = pick;
@@ -1294,6 +1322,22 @@ function leaveAmbientGift() {
   } catch {}
 }
 function takeAmbientGift() {
+  if (pendingReturnGift) {
+    const item = pendingReturnGift;
+    const story = pendingReturnGiftStory || ('Brought you ' + item + ' for no reason — just wanted you to have it.');
+    pendingReturnGift = null;
+    pendingReturnGiftStory = '';
+    try { sunGiftBtn.hidden = true; } catch {}
+    try {
+      keepsakePush(item, story);
+      diaryPush(story);
+    } catch {}
+    persist(); renderShelves(); renderButtons();
+    emote('🎁');
+    chime('gift');
+    say('Kept ' + item + ' on the shelf, warm from the sun spot.');
+    return;
+  }
   if (!ambientGiftPending) return;
   if (!ambientGiftWeekOk()) { ambientGiftPending = null; try { sunGiftBtn.hidden = true; } catch {} return; }
   const item = ambientGiftPending;
@@ -1323,7 +1367,7 @@ function ambientBeat() {
       return;
     }
     if (!wellNow()) return;
-    if (ambientGiftPending) return;
+    if (ambientGiftPending || pendingReturnGift) return;
     if (trustFondPlus() && ambientGiftWeekOk() && Math.random() < 0.3) { leaveAmbientGift(); return; }
     try {
       ritualTarget = { x: clamp01(gaze.x + (Math.random() - 0.5) * 0.1), y: clamp01(gaze.y + (Math.random() - 0.5) * 0.1) };
@@ -1476,7 +1520,7 @@ swallow(() => {
       for (const r2 of rs) swallow(() => r2(true));
       if (rs.length) return;
       if (busy) { say('One moment… still here with you.'); return; }
-      if (ambientGiftPending) {
+      if (ambientGiftPending || pendingReturnGift) {
         const ds = Math.hypot(p.x - 0.24, p.y - 0.3);
         if (ds < 0.28) { takeAmbientGift(); return; }
       }
@@ -1498,7 +1542,7 @@ swallow(() => {
     } else {
       const dsun = Math.hypot(p.x - 0.24, p.y - 0.3);
       if (dsun < 0.2 && !busy && aliveNow() && !sleepNow() && stageNow() !== 'egg') {
-        if (ambientGiftPending) { takeAmbientGift(); return; }
+        if (ambientGiftPending || pendingReturnGift) { takeAmbientGift(); return; }
         const s = sunFleckStatus();
         if (s.ok || !sunFleckBtn.hidden) { sunFleckRitual(true); return; }
         if (!s.ok) {
@@ -1526,6 +1570,14 @@ swallow(() => {
         try {
           if (!aliveNow() || main.hidden) return;
           if (warnStage() !== 'well' || sickNow()) return;
+          if (askOpenFresh()) {
+            ui.askOpenAt = 0;
+            try { storeUi(); } catch {}
+            try { healthNote.hidden = true; } catch {}
+            return;
+          }
+          ui.askOpenAt = Date.now();
+          try { storeUi(); } catch {}
           healthNote.hidden = false;
           healthText.textContent = ASK_COPY;
         } catch {}
@@ -1534,6 +1586,22 @@ swallow(() => {
       statusLine.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') { swallow(() => e.preventDefault()); expandAsk(); }
       });
+      if (healthNote) {
+        const dismissAsk = () => {
+          try {
+            if (!askOpenFresh()) return;
+            ui.askOpenAt = 0;
+            try { storeUi(); } catch {}
+            try { healthNote.hidden = true; } catch {}
+          } catch {}
+        };
+        healthNote.addEventListener('click', dismissAsk);
+        healthNote.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') { swallow(() => e.preventDefault()); dismissAsk(); }
+        });
+        try { healthNote.setAttribute('tabindex', '0'); } catch {}
+        try { healthNote.setAttribute('role', 'button'); } catch {}
+      }
     }
   } catch {}
   try {
@@ -1872,6 +1940,26 @@ function showWelcomeBack(awayMinutes, events, story) {
   const clean = lines.map(tidy).filter(Boolean);
   const g = swallow(() => { const f = engine.getGreeting || engine.consumeGreeting || engine.acknowledgeReturn; return typeof f === 'function' ? f.call(engine) : null; }, null);
   const rush = g && (g.intense || /rush|missed/i.test(g.text || ''));
+  const pending = doConsumePendingReturn();
+  let pendingWantLine = null;
+  let pendingWantSpot = null;
+  let pendingGift = null;
+  try {
+    if (pending && pending.kind === 'want') {
+      const spot = String(pending.spot || 'snack');
+      pendingWantSpot = (spot === 'snack' || spot === 'sun' || spot === 'nest') ? spot : 'snack';
+      const raw = (typeof pending.text === 'string' && pending.text.trim()) ? tidy(pending.text) : '';
+      if (raw) pendingWantLine = raw;
+      else if (pendingWantSpot === 'snack') pendingWantLine = 'Seems to be asking — glancing at the snack corner';
+      else if (pendingWantSpot === 'sun') pendingWantLine = 'Seems to be asking — glancing at the warm spot';
+      else if (pendingWantSpot === 'nest') pendingWantLine = 'Seems to be asking — glancing at the nest';
+      else pendingWantLine = 'Seems to be asking — looking back at you';
+    } else if (pending && pending.kind === 'gift' && (pending.item || pending.name)) {
+      const item = String(pending.item || pending.name || 'a small wonder').slice(0, 48);
+      const story = (typeof pending.story === 'string' && pending.story.trim()) ? pending.story.trim() : ('Brought you ' + item + ' for no reason — just wanted you to have it.');
+      pendingGift = { item, story };
+    }
+  } catch {}
   try {
     returnNote.hidden = false;
     const greet = rush && g.text ? tidy(g.text) : '';
@@ -1880,10 +1968,37 @@ function showWelcomeBack(awayMinutes, events, story) {
       : n + ' notices you and comes rushing over, glowing all over — so glad you are back. ';
     if (clean.length) t += 'While you were away for ' + spanWords(awayMinutes) + ', ' + clean.join(' ') + '. ';
     else t += 'While you were away for ' + spanWords(awayMinutes) + ', the little home kept warm. ';
-    try {
-      const extra = doAnniversary();
-      if (extra) t += tidy(extra) + '. ';
-    } catch {}
+    let showedInitiative = false;
+    if (pendingWantLine) {
+      t += tidy(pendingWantLine) + '. ';
+      showedInitiative = true;
+      try {
+        goSpot(pendingWantSpot || 'snack');
+        setTimeout(() => { try { safeReact('head'); } catch {} }, 900);
+      } catch {}
+      try {
+        say(tidy(pendingWantLine) + '.', 3400);
+        diaryPush(tidy(pendingWantLine) + '.');
+        renderShelves(); persist();
+      } catch {}
+    } else if (pendingGift) {
+      const giftLine = tidy(pendingGift.story) || tidy('Brought you ' + pendingGift.item + ' for no reason — just wanted you to have it');
+      t += giftLine + '. A tiny gift waits at the warm spot. ';
+      showedInitiative = true;
+      try {
+        pendingReturnGift = pendingGift.item;
+        pendingReturnGiftStory = pendingGift.story;
+        goSpot('sun');
+        emote('🎁');
+        updateSunGiftAffordance();
+      } catch {}
+    }
+    if (!showedInitiative) {
+      try {
+        const extra = doAnniversary();
+        if (extra) t += tidy(extra) + '. ';
+      } catch {}
+    }
     try {
       const lastLong = Number(ui.lastLongPauseAt) || 0;
       const weekOk = (Date.now() - lastLong) > 7 * 24 * 60 * 60 * 1000;

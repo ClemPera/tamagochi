@@ -100,3 +100,24 @@ Plus: wander is glide-only (needs hop/squash/blink), breathe overlay could be wa
 1. Give-up button dead to pointer (overlay pointer-events:none).
 2. Cancelled Give-up/Escape Play must not pay the success reward.
 3. Polish: bigger miss ripple, crumb-puff garnish, snack home off the face.
+
+## Cold-start playtest (fix-26) — stranger, no docs, 60s verdict
+- Onboarding readable in 10s, hatches ~17s by cues alone. Cute, responsive.
+- Friction: disabled hold button silent on click; promise threshold guesswork;
+  quick-click on enabled commit does nothing (non-reader stuck, no press feedback).
+- "Read the glance" copy references an unseen mechanic.
+- Hide-and-find confusing: friend never hides, taps feel random, completes by accident.
+- Game locks all buttons unexplained; "Sit close — always" not always.
+- "EVERYONE WHO CAME BEFORE — No one yet" ominous, unexplained.
+- Status-line away-explainer would not open via click/Enter/Space (needs check).
+- Nothing in 5 min says it can die or invites return tomorrow.
+
+## Longitudinal verdict B (ora-4) — PULL, not maintenance
+- 3x/day rhythm holds; spark oscillates soft/sleepy, never binds; lapse forgiven;
+  trajectory readable days ahead; anniversaries land as story.
+- Top-10 all land in sustained play; weak: initiative/ambient invisible to
+  short-visit players.
+- Highest-leverage month-2 change: attach one pending want/gift to returnNote
+  after 180min+ absence (max 1/day) — casuals currently never trigger
+  initiative (3min-open gate) so bond is care-only.
+- Secondary: cap "rushed over" diary repeats (3 identical lines/day).

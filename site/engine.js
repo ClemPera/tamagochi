@@ -173,6 +173,12 @@ function freshState(init = {}) {
     lastGrewDay: '',
     annivMentioned: {},
     lastTuckWasNight: false,
+    pendingReturn: null,
+    lastReturnInitiativeDay: '',
+    lastReturnInitiativeKind: '',
+    lastRushedDay: '',
+    rushedVariant: 0,
+    rushedIdx: 0,
   };
   if (typeof init.name === 'string' && init.name.trim()) st.name = init.name.trim().slice(0, 24);
   if (Number.isFinite(init.accentHue)) st.accentHue = clamp(init.accentHue, 0, 360);
@@ -228,6 +234,14 @@ function freshState(init = {}) {
   if (typeof init.lastGrewDay === 'string') st.lastGrewDay = init.lastGrewDay;
   if (init.annivMentioned && typeof init.annivMentioned === 'object') st.annivMentioned = { ...init.annivMentioned };
   if (typeof init.lastTuckWasNight === 'boolean') st.lastTuckWasNight = init.lastTuckWasNight;
+  if (init.pendingReturn && typeof init.pendingReturn === 'object') st.pendingReturn = { ...init.pendingReturn };
+  else if (init.pendingReturn === null) st.pendingReturn = null;
+  if (typeof init.lastReturnInitiativeDay === 'string') st.lastReturnInitiativeDay = init.lastReturnInitiativeDay;
+  if (typeof init.lastReturnInitiativeKind === 'string') st.lastReturnInitiativeKind = init.lastReturnInitiativeKind;
+  if (typeof init.lastRushedDay === 'string') st.lastRushedDay = init.lastRushedDay;
+  if (Number.isFinite(+init.rushedVariant)) st.rushedVariant = ((Math.floor(+init.rushedVariant) % 3) + 3) % 3;
+  if (Number.isFinite(+init.rushedIdx)) st.rushedVariant = ((Math.floor(+init.rushedIdx) % 3) + 3) % 3;
+  st.rushedIdx = st.rushedVariant;
   return st;
 }
 
@@ -317,6 +331,14 @@ export function deserialize(text) {
   if (typeof raw.lastGrewDay === 'string') st.lastGrewDay = raw.lastGrewDay;
   if (raw.annivMentioned && typeof raw.annivMentioned === 'object') st.annivMentioned = { ...raw.annivMentioned };
   if (typeof raw.lastTuckWasNight === 'boolean') st.lastTuckWasNight = raw.lastTuckWasNight;
+  if (raw.pendingReturn && typeof raw.pendingReturn === 'object') st.pendingReturn = { ...raw.pendingReturn };
+  else if (raw.pendingReturn === null) st.pendingReturn = null;
+  if (typeof raw.lastReturnInitiativeDay === 'string') st.lastReturnInitiativeDay = raw.lastReturnInitiativeDay;
+  if (typeof raw.lastReturnInitiativeKind === 'string') st.lastReturnInitiativeKind = raw.lastReturnInitiativeKind;
+  if (typeof raw.lastRushedDay === 'string') st.lastRushedDay = raw.lastRushedDay;
+  if (Number.isFinite(+raw.rushedVariant)) st.rushedVariant = ((Math.floor(+raw.rushedVariant) % 3) + 3) % 3;
+  if (Number.isFinite(+raw.rushedIdx)) st.rushedVariant = ((Math.floor(+raw.rushedIdx) % 3) + 3) % 3;
+  st.rushedIdx = st.rushedVariant;
   return st;
 }
 
@@ -827,7 +849,22 @@ export function createEngine(initial = {}) {
     if (state.stage === 'egg') return { intense: false, text: 'The egg feels warm. Something small is waiting to meet you.' };
     if (state.missedYou) {
       state.missedYou = false;
-      pushDiary(state, `${state.name} rushed over on your return, overjoyed to see you.`);
+      try {
+        const t = todayStr();
+        if (state.lastRushedDay !== t) {
+          const variants = [
+            `${state.name} rushed over on your return, overjoyed to see you.`,
+            `${state.name} hurried over when you came back, so glad to be near again.`,
+            `${state.name} came rushing over, having missed you, glowing to see you back.`,
+          ];
+          let idx = Math.floor(Number(state.rushedVariant) || 0) % 3;
+          if (!Number.isFinite(idx) || idx < 0) idx = 0;
+          pushDiary(state, variants[idx]);
+          state.lastRushedDay = t;
+          state.rushedVariant = (idx + 1) % 3;
+          state.rushedIdx = state.rushedVariant;
+        }
+      } catch { /* diary cap never blocks greeting */ }
       return { intense: true, text: `${state.name} notices you and comes rushing over, glowing all over — missed you, missed you, so glad you are back.` };
     }
     if (state.sleeping) return { intense: false, text: `${state.name} sleeps softly, breathing slow.` };
@@ -904,6 +941,62 @@ export function createEngine(initial = {}) {
     ];
   }
 
+  function wantTextForSpot(spot) {
+    if (spot === 'snack') return 'Seems to be asking — glancing at the snack corner.';
+    if (spot === 'sun') return 'Seems to be asking — glancing at the warm spot.';
+    if (spot === 'nest') return 'Seems to be asking — glancing at the nest.';
+    return 'Seems to be asking — looking back at you.';
+  }
+
+  function pendingWantSpot() {
+    try {
+      const low = lowestNeed();
+      if (low.key === 'belly') return 'snack';
+      if (low.key === 'heart') return 'sun';
+      return 'nest';
+    } catch { return 'snack'; }
+  }
+
+  function maybeAttachReturnInitiative() {
+    if (!state.alive) return;
+    if (state.stage === 'egg') return;
+    if (state.pendingReturn) return;
+    let today = '';
+    let yest = '';
+    try { today = todayStr(); yest = yesterdayStr(); } catch { return; }
+    if (!today) return;
+    if (state.lastReturnInitiativeDay === today) return;
+    if (state.spark === 'spent') return;
+    if (!(Number(state.trust) >= 30)) return;
+    const lb = state.lastBreakfastDay || '';
+    if (!(lb === today || (lb && lb === yest))) return;
+    let kind = state.lastReturnInitiativeKind === 'want' ? 'gift' : 'want';
+    if (kind === 'gift') {
+      let week = Array.isArray(state.unpromptedGiftWeek) ? state.unpromptedGiftWeek.map(String) : [];
+      try { week = week.filter((d) => daysBetween(String(d), today) <= 7); } catch { week = []; }
+      if (week.includes(today) || week.length >= 2) kind = 'want';
+      else {
+        const pick = GIFT_ITEMS[Math.floor(Math.random() * GIFT_ITEMS.length)];
+        const item = pick[0];
+        const story = `Brought you ${item} for no reason — just wanted you to have it.`;
+        state.pendingReturn = { kind: 'gift', item, story };
+        state.lastReturnInitiativeDay = today;
+        state.lastReturnInitiativeKind = 'gift';
+        return;
+      }
+    }
+    const spot = pendingWantSpot();
+    state.pendingReturn = { kind: 'want', spot, text: wantTextForSpot(spot) };
+    state.lastReturnInitiativeDay = today;
+    state.lastReturnInitiativeKind = 'want';
+  }
+
+  function consumePendingReturn() {
+    const p = state.pendingReturn || null;
+    state.pendingReturn = null;
+    return p;
+  }
+
   function simulateOffline(awayMinutes) {
     const capped = clamp(Number(awayMinutes) || 0, 0, OFFLINE_CAP_MIN);
     if (capped >= 180 && state.alive && state.stage !== 'egg') state.missedYou = true;
@@ -915,6 +1008,9 @@ export function createEngine(initial = {}) {
       allEvents.push(...r.events);
       left -= step;
       if (!state.alive) break;
+    }
+    if (capped >= 180) {
+      try { maybeAttachReturnInitiative(); } catch { /* words only, never block return */ }
     }
     state.lastSeen = nowMs();
     updateMood(state);
@@ -1161,5 +1257,6 @@ export function createEngine(initial = {}) {
     checkInitiative,
     grantGift,
     anniversaryLine,
+    consumePendingReturn,
   };
 }
