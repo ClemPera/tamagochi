@@ -121,3 +121,9 @@ Plus: wander is glide-only (needs hop/squash/blink), breathe overlay could be wa
   after 180min+ absence (max 1/day) — casuals currently never trigger
   initiative (3min-open gate) so bond is care-only.
 - Secondary: cap "rushed over" diary repeats (3 identical lines/day).
+
+## Ambient dream beat (vambient6) — VERIFIED live
+- Chill demo treated end-to-end (sit/feed/breathe/tuck/wake/feed/medicine),
+  pet tucked, dream diary fired on first check after tuck. Chain works.
+- Earlier "missing beats" explained: guided demo legitimately blocks ambient
+  while sick/untreated; deferral fix keeps beats retrying instead of skipping.
