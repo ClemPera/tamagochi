@@ -2,6 +2,8 @@
 
 A standalone Tamagotchi-like virtual friend. Plain HTML, CSS, and vanilla JavaScript — zero dependencies, no build step, works offline once loaded.
 
+> An experiment, built entirely by AI. Its design is grounded in real attachment research — animacy from motion (Heider & Simmel), baby schema and the caregiving reward system (Lorenz, Glocker), Bowlby's attachment criteria, effort-justification (IKEA effect), and the identifiable-victim effect (Slovic, Small) — translated into game mechanics: goal-legible movement, tunable cuteness, proximity/separation/safe-haven/secure-base loops, completion-only bonding, and one named creature shown in words, never numbers.
+
 <img src="docs/screenshots/day.png" width="360" alt="Mochi the creature in daytime, after a shared snack">
 
 ## Try it
